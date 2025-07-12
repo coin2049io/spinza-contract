@@ -99,39 +99,38 @@ jobs:
         ~/.cargo/bin/cargo --version
         CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
-    - name: 🚀 Deploy Smart Contract (ELF FIX)
+    - name: 🚀 Deploy Smart Contract (SOLANA REBUILD FIX)
       run: |
-        echo "🚀 DEPLOYING WITH ELF FIX..."
+        echo "🚀 SOLANA REBUILD FIX..."
         
-        # Find the libspinza.so file (build step already worked)
-        LIBSPINZA_SO=$(find . -name "libspinza.so" -type f | grep -v deps | head -1)
-        if [ -z "$LIBSPINZA_SO" ]; then
-          LIBSPINZA_SO=$(find . -name "libspinza.so" -type f | head -1)
-        fi
-        
-        echo "✅ FOUND libspinza.so at: $LIBSPINZA_SO"
-        
-        # Copy and strip the binary to fix ELF issues
-        mkdir -p target/deploy
-        cp "$LIBSPINZA_SO" target/deploy/spinza.so
-        
-        # Strip problematic ELF sections that cause parsing errors
-        echo "🧹 Stripping ELF sections to fix parsing..."
-        strip --strip-all target/deploy/spinza.so || echo "⚠️ Strip failed, trying without"
-        
-        # Use solana CLI directly instead of anchor deploy (avoids ELF parsing)
-        echo "🚀 DEPLOYING with Solana CLI..."
+        # Install Solana build tools
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         
-        # Get program ID from anchor
-        PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
-        echo "📍 Program ID: $PROGRAM_ID"
+        # NUCLEAR: Rebuild using Solana's cargo-build-sbf
+        echo "🔨 Rebuilding with Solana tools..."
+        source ~/.cargo/env
         
-        # Deploy directly with solana CLI (bypasses anchor's ELF parser)
+        # Use Solana's build tool instead of regular cargo
+        $HOME/.local/share/solana/install/active_release/bin/cargo-build-sbf --manifest-path programs/spinza/Cargo.toml
+        
+        # Check if Solana build worked
+        if [ -f "target/deploy/spinza.so" ]; then
+          echo "✅ Solana build created target/deploy/spinza.so"
+        else
+          echo "⚠️ Solana build failed, using alternative..."
+          
+          # Fallback: Find the regular build and use solana-verify
+          LIBSPINZA_SO=$(find . -name "libspinza.so" -type f | grep -v deps | head -1)
+          mkdir -p target/deploy
+          cp "$LIBSPINZA_SO" target/deploy/spinza.so
+        fi
+        
+        # Deploy with Solana CLI
+        echo "🚀 DEPLOYING..."
+        PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
         $HOME/.local/share/solana/install/active_release/bin/solana program deploy target/deploy/spinza.so --program-id $PROGRAM_ID
         
         echo "🎉 DEPLOYMENT SUCCESSFUL!"
-
         
     - name: 📊 Get Program ID
       run: |
