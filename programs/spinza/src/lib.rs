@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Token, TokenAccount, Transfer};
-use std::collections::BTreeMap;
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+
+const MAX_PLAYERS_PER_ROUND: u8 = 50;
 
 #[program]
 pub mod spinza {
@@ -21,7 +21,7 @@ pub mod spinza {
         game_state.min_bet = min_bet;
         game_state.max_bet = max_bet;
         game_state.max_players = max_players;
-        game_state.commission_rate = commission_rate; // basis points (1000 = 10%)
+        game_state.commission_rate = commission_rate;
         game_state.is_paused = false;
         game_state.round_count = 0;
         game_state.current_round = None;
@@ -87,7 +87,6 @@ pub mod spinza {
         let mut player_exists = false;
         for i in 0..round.player_count {
             if round.players[i as usize].player == player {
-                // Add to existing bet
                 round.players[i as usize].bet_amount += amount;
                 player_exists = true;
                 break;
@@ -95,7 +94,6 @@ pub mod spinza {
         }
 
         if !player_exists {
-            // Add new player
             require!(round.player_count < MAX_PLAYERS_PER_ROUND, GameError::RoundFull);
             round.players[round.player_count as usize] = PlayerBet {
                 player,
@@ -106,7 +104,6 @@ pub mod spinza {
 
         round.total_pool += amount;
 
-        // Update round status if we have 2+ unique players
         if round.status == RoundStatus::WaitingForPlayers && round.player_count >= 2 {
             round.status = RoundStatus::Active;
             emit!(RoundActivated {
@@ -140,7 +137,6 @@ pub mod spinza {
         require!(round.player_count >= 2, GameError::NotEnoughPlayers);
         require!(round.total_pool > 0, GameError::EmptyPool);
 
-        // Use random seed to select winner based on weighted probability
         let winner_index = select_weighted_winner(round, random_seed)?;
         let winner = round.players[winner_index].player;
         let winner_bet_amount = round.players[winner_index].bet_amount;
@@ -150,16 +146,16 @@ pub mod spinza {
         round.resolved_at = Some(Clock::get()?.unix_timestamp);
 
         // Calculate commission correctly: 10% of winnings, not total pool
-        let gross_winnings = round.total_pool - winner_bet_amount; // What winner gains
+        let gross_winnings = round.total_pool - winner_bet_amount;
         let commission = (gross_winnings * game_state.commission_rate as u64) / 10000;
         let net_winnings = gross_winnings - commission;
-        let total_to_winner = winner_bet_amount + net_winnings; // Bet return + net profit
+        let total_to_winner = winner_bet_amount + net_winnings;
 
         // Transfer commission to operator
         **ctx.accounts.round_vault.to_account_info().try_borrow_mut_lamports()? -= commission;
         **ctx.accounts.operator_wallet.to_account_info().try_borrow_mut_lamports()? += commission;
 
-        // Transfer total amount to winner (original bet + net winnings)
+        // Transfer total amount to winner
         **ctx.accounts.round_vault.to_account_info().try_borrow_mut_lamports()? -= total_to_winner;
         **ctx.accounts.winner_wallet.to_account_info().try_borrow_mut_lamports()? += total_to_winner;
 
@@ -180,7 +176,6 @@ pub mod spinza {
         Ok(())
     }
 
-    // Admin functions
     pub fn pause_game(ctx: Context<AdminAction>) -> Result<()> {
         let game_state = &mut ctx.accounts.game_state;
         require!(ctx.accounts.authority.key() == game_state.operator_wallet, GameError::Unauthorized);
@@ -196,70 +191,23 @@ pub mod spinza {
         emit!(GameUnpaused {});
         Ok(())
     }
-
-    pub fn update_bet_limits(ctx: Context<AdminAction>, min_bet: u64, max_bet: u64) -> Result<()> {
-        let game_state = &mut ctx.accounts.game_state;
-        require!(ctx.accounts.authority.key() == game_state.operator_wallet, GameError::Unauthorized);
-        require!(min_bet < max_bet, GameError::InvalidBetLimits);
-        
-        game_state.min_bet = min_bet;
-        game_state.max_bet = max_bet;
-        
-        emit!(BetLimitsUpdated { min_bet, max_bet });
-        Ok(())
-    }
-
-    pub fn update_commission_rate(ctx: Context<AdminAction>, commission_rate: u16) -> Result<()> {
-        let game_state = &mut ctx.accounts.game_state;
-        require!(ctx.accounts.authority.key() == game_state.operator_wallet, GameError::Unauthorized);
-        require!(commission_rate <= 2000, GameError::CommissionTooHigh); // Max 20%
-        
-        game_state.commission_rate = commission_rate;
-        
-        emit!(CommissionRateUpdated { commission_rate });
-        Ok(())
-    }
-
-    pub fn emergency_withdraw(ctx: Context<EmergencyWithdraw>) -> Result<()> {
-        let game_state = &ctx.accounts.game_state;
-        require!(ctx.accounts.authority.key() == game_state.operator_wallet, GameError::Unauthorized);
-        
-        let vault_balance = ctx.accounts.round_vault.to_account_info().lamports();
-        
-        **ctx.accounts.round_vault.to_account_info().try_borrow_mut_lamports()? = 0;
-        **ctx.accounts.operator_wallet.to_account_info().try_borrow_mut_lamports()? += vault_balance;
-        
-        emit!(EmergencyWithdrawal { amount: vault_balance });
-        Ok(())
-    }
 }
 
-// Helper function to select winner based on weighted probability
 fn select_weighted_winner(round: &Round, random_seed: u64) -> Result<usize> {
     if round.player_count == 0 || round.total_pool == 0 {
         return err!(GameError::EmptyPool);
     }
 
-    // Create cumulative probability ranges
-    let mut cumulative_weights = Vec::new();
     let mut cumulative_sum = 0u64;
+    let random_value = random_seed % round.total_pool;
     
     for i in 0..round.player_count {
         cumulative_sum += round.players[i as usize].bet_amount;
-        cumulative_weights.push(cumulative_sum);
-    }
-
-    // Generate random number in range [0, total_pool)
-    let random_value = random_seed % round.total_pool;
-    
-    // Find winner based on weighted probability
-    for (index, &cumulative_weight) in cumulative_weights.iter().enumerate() {
-        if random_value < cumulative_weight {
-            return Ok(index);
+        if random_value < cumulative_sum {
+            return Ok(i as usize);
         }
     }
 
-    // Fallback to last player (should not happen with correct logic)
     Ok((round.player_count - 1) as usize)
 }
 
@@ -367,28 +315,6 @@ pub struct AdminAction<'info> {
     pub authority: Signer<'info>,
 }
 
-#[derive(Accounts)]
-pub struct EmergencyWithdraw<'info> {
-    #[account(
-        seeds = [b"game_state"],
-        bump
-    )]
-    pub game_state: Account<'info, GameState>,
-    #[account(
-        mut,
-        seeds = [b"round_vault", round.key().as_ref()],
-        bump
-    )]
-    /// CHECK: Round vault for emergency withdrawal
-    pub round_vault: AccountInfo<'info>,
-    #[account(mut)]
-    /// CHECK: Operator wallet for emergency funds
-    pub operator_wallet: AccountInfo<'info>,
-    #[account(mut)]
-    pub round: Account<'info, Round>,
-    pub authority: Signer<'info>,
-}
-
 // Data structures
 #[account]
 #[derive(InitSpace)]
@@ -397,7 +323,7 @@ pub struct GameState {
     pub min_bet: u64,
     pub max_bet: u64,
     pub max_players: u8,
-    pub commission_rate: u16, // basis points (1000 = 10%)
+    pub commission_rate: u16,
     pub is_paused: bool,
     pub round_count: u64,
     pub current_round: Option<Pubkey>,
@@ -430,8 +356,6 @@ pub struct PlayerBet {
     pub player: Pubkey,
     pub bet_amount: u64,
 }
-
-const MAX_PLAYERS_PER_ROUND: u8 = 50;
 
 // Events
 #[event]
@@ -484,22 +408,6 @@ pub struct GamePaused {}
 #[event]
 pub struct GameUnpaused {}
 
-#[event]
-pub struct BetLimitsUpdated {
-    pub min_bet: u64,
-    pub max_bet: u64,
-}
-
-#[event]
-pub struct CommissionRateUpdated {
-    pub commission_rate: u16,
-}
-
-#[event]
-pub struct EmergencyWithdrawal {
-    pub amount: u64,
-}
-
 // Error codes
 #[error_code]
 pub enum GameError {
@@ -521,8 +429,4 @@ pub enum GameError {
     EmptyPool,
     #[msg("Unauthorized operation")]
     Unauthorized,
-    #[msg("Invalid bet limits")]
-    InvalidBetLimits,
-    #[msg("Commission rate too high")]
-    CommissionTooHigh,
 }
