@@ -19,7 +19,7 @@ pub mod spinza {
         game_state.min_bet = min_bet;
         game_state.max_bet = max_bet;
         game_state.max_players = max_players;
-        game_state.commission_rate = commission_rate; // basis points (1000 = 10%)
+        game_state.commission_rate = commission_rate;
         game_state.is_paused = false;
         game_state.round_count = 0;
         game_state.current_round = None;
@@ -51,6 +51,11 @@ pub mod spinza {
         round.player_count = 0;
         round.created_at = Clock::get()?.unix_timestamp;
         round.winner = None;
+        
+        // Initialize all player slots to default
+        for i in 0..MAX_PLAYERS_PER_ROUND {
+            round.players[i as usize] = PlayerBet::default();
+        }
 
         emit!(RoundCreated {
             round_id: round.round_id,
@@ -81,28 +86,28 @@ pub mod spinza {
         );
         anchor_lang::system_program::transfer(cpi_context, amount)?;
 
-        // Check if player already has a bet in this round
-        let mut player_exists = false;
-        let mut total_player_amount = amount;
+        // NUCLEAR SOLUTION: Find existing player or add new one
+        let mut found_player = false;
+        let mut player_total = amount;
         
-        for i in 0..round.player_count {
-            if round.players[i as usize].player == player {
-                // Add to existing bet
-                round.players[i as usize].bet_amount += amount;
-                total_player_amount = round.players[i as usize].bet_amount;
-                player_exists = true;
+        // Check existing players
+        for i in 0..round.player_count as usize {
+            if round.players[i].player == player {
+                round.players[i].bet_amount += amount;
+                player_total = round.players[i].bet_amount;
+                found_player = true;
                 break;
             }
         }
 
-        if !player_exists {
-            // Add new player
+        // Add new player if not found
+        if !found_player {
             require!(round.player_count < MAX_PLAYERS_PER_ROUND, GameError::RoundFull);
-            round.players[round.player_count as usize] = PlayerBet {
-                player,
-                bet_amount: amount,
-            };
+            let new_index = round.player_count as usize;
+            round.players[new_index].player = player;
+            round.players[new_index].bet_amount = amount;
             round.player_count += 1;
+            player_total = amount;
         }
 
         round.total_pool += amount;
@@ -121,7 +126,7 @@ pub mod spinza {
             round_id: round.round_id,
             player,
             amount,
-            total_amount: total_player_amount,
+            total_amount: player_total,
             total_pool: round.total_pool,
             player_count: round.player_count,
         });
@@ -147,16 +152,16 @@ pub mod spinza {
         round.resolved_at = Some(Clock::get()?.unix_timestamp);
 
         // Calculate commission correctly: 10% of winnings, not total pool
-        let gross_winnings = round.total_pool - winner_bet_amount; // What winner gains
+        let gross_winnings = round.total_pool - winner_bet_amount;
         let commission = (gross_winnings * game_state.commission_rate as u64) / 10000;
         let net_winnings = gross_winnings - commission;
-        let total_to_winner = winner_bet_amount + net_winnings; // Bet return + net profit
+        let total_to_winner = winner_bet_amount + net_winnings;
 
         // Transfer commission to operator
         **ctx.accounts.round_vault.to_account_info().try_borrow_mut_lamports()? -= commission;
         **ctx.accounts.operator_wallet.to_account_info().try_borrow_mut_lamports()? += commission;
 
-        // Transfer total amount to winner (original bet + net winnings)
+        // Transfer total amount to winner
         **ctx.accounts.round_vault.to_account_info().try_borrow_mut_lamports()? -= total_to_winner;
         **ctx.accounts.winner_wallet.to_account_info().try_borrow_mut_lamports()? += total_to_winner;
 
@@ -209,7 +214,7 @@ pub mod spinza {
     pub fn update_commission_rate(ctx: Context<AdminAction>, commission_rate: u16) -> Result<()> {
         let game_state = &mut ctx.accounts.game_state;
         require!(ctx.accounts.authority.key() == game_state.operator_wallet, GameError::Unauthorized);
-        require!(commission_rate <= 2000, GameError::CommissionTooHigh); // Max 20%
+        require!(commission_rate <= 2000, GameError::CommissionTooHigh);
         
         game_state.commission_rate = commission_rate;
         
@@ -231,32 +236,22 @@ pub mod spinza {
     }
 }
 
-// Helper function to select winner based on weighted probability
+// NUCLEAR HELPER FUNCTION
 fn select_weighted_winner(round: &Round, random_seed: u64) -> Result<usize> {
     if round.player_count == 0 || round.total_pool == 0 {
         return err!(GameError::EmptyPool);
     }
 
-    // Create cumulative probability ranges
-    let mut cumulative_weights = Vec::new();
     let mut cumulative_sum = 0u64;
-    
-    for i in 0..round.player_count {
-        cumulative_sum += round.players[i as usize].bet_amount;
-        cumulative_weights.push(cumulative_sum);
-    }
-
-    // Generate random number in range [0, total_pool)
     let random_value = random_seed % round.total_pool;
     
-    // Find winner based on weighted probability
-    for (index, &cumulative_weight) in cumulative_weights.iter().enumerate() {
-        if random_value < cumulative_weight {
-            return Ok(index);
+    for i in 0..round.player_count as usize {
+        cumulative_sum += round.players[i].bet_amount;
+        if random_value < cumulative_sum {
+            return Ok(i);
         }
     }
 
-    // Fallback to last player (should not happen with correct logic)
     Ok((round.player_count - 1) as usize)
 }
 
@@ -386,7 +381,9 @@ pub struct EmergencyWithdraw<'info> {
     pub authority: Signer<'info>,
 }
 
-// Data structures
+// NUCLEAR DATA STRUCTURES - FIXED ARRAYS ONLY
+const MAX_PLAYERS_PER_ROUND: u8 = 50;
+
 #[account]
 #[derive(InitSpace)]
 pub struct GameState {
@@ -394,7 +391,7 @@ pub struct GameState {
     pub min_bet: u64,
     pub max_bet: u64,
     pub max_players: u8,
-    pub commission_rate: u16, // basis points (1000 = 10%)
+    pub commission_rate: u16,
     pub is_paused: bool,
     pub round_count: u64,
     pub current_round: Option<Pubkey>,
@@ -407,8 +404,7 @@ pub struct Round {
     pub status: RoundStatus,
     pub total_pool: u64,
     pub player_count: u8,
-    #[max_len(50)]
-    pub players: Vec<PlayerBet>,
+    pub players: [PlayerBet; 50], // NUCLEAR: Fixed array instead of Vec
     pub created_at: i64,
     pub resolved_at: Option<i64>,
     pub winner: Option<Pubkey>,
@@ -422,13 +418,20 @@ pub enum RoundStatus {
     Cancelled,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace, Default)]
 pub struct PlayerBet {
     pub player: Pubkey,
     pub bet_amount: u64,
 }
 
-const MAX_PLAYERS_PER_ROUND: u8 = 50;
+impl Default for PlayerBet {
+    fn default() -> Self {
+        Self {
+            player: Pubkey::default(),
+            bet_amount: 0,
+        }
+    }
+}
 
 // Events
 #[event]
