@@ -84,7 +84,7 @@ jobs:
           sleep 5
         fi
         
-   - name: 🔨 NUCLEAR BUILD
+    - name: 🔨 NUCLEAR BUILD
       run: |
         source ~/.cargo/env
         export PATH="$HOME/.cargo/bin:$PATH"
