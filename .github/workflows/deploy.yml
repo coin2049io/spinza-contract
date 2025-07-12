@@ -84,7 +84,7 @@ jobs:
           sleep 5
         fi
         
-    - name: 🔨 NUCLEAR BUILD
+   - name: 🔨 NUCLEAR BUILD
       run: |
         source ~/.cargo/env
         export PATH="$HOME/.cargo/bin:$PATH"
@@ -97,15 +97,16 @@ jobs:
         
         # NUCLEAR BUILD with explicit paths
         ~/.cargo/bin/cargo --version
+        
         # Try Solana-specific build first to avoid ELF issues
-echo "🚀 Attempting Solana-compatible build..."
-if command -v cargo-build-sbf >/dev/null 2>&1; then
-  echo "✅ Using cargo-build-sbf for Solana compatibility"
-  CARGO_NET_GIT_FETCH_WITH_CLI=true cargo-build-sbf --manifest-path programs/spinza/Cargo.toml
-else
-  echo "⚠️ cargo-build-sbf not found, using regular build"
-  CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
-fi
+        echo "🚀 Attempting Solana-compatible build..."
+        if command -v cargo-build-sbf >/dev/null 2>&1; then
+          echo "✅ Using cargo-build-sbf for Solana compatibility"
+          CARGO_NET_GIT_FETCH_WITH_CLI=true cargo-build-sbf --manifest-path programs/spinza/Cargo.toml
+        else
+          echo "⚠️ cargo-build-sbf not found, using regular build"
+          CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
+        fi
         
     - name: 🚀 Deploy Smart Contract (SAFE VERSION)
       run: |
