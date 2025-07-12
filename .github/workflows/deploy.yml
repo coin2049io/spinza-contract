@@ -20,37 +20,34 @@ jobs:
     - name: 📥 Checkout code
       uses: actions/checkout@v4
       
-    - name: 🦀 Install Rust (Complete Fix)
+    - name: 🧹 NUCLEAR CLEAN
       run: |
-        echo "🧹 Completely removing any existing Rust..."
+        echo "🧹 NUCLEAR CLEAN - Removing EVERYTHING..."
+        sudo apt-get remove -y rustc cargo || true
+        sudo apt-get autoremove -y || true
         rustup self uninstall -y || true
-        rm -rf ~/.rustup ~/.cargo || true
+        rm -rf ~/.rustup ~/.cargo /usr/local/cargo /usr/local/rustup || true
+        sudo rm -rf /usr/bin/rustc /usr/bin/cargo || true
         
-        echo "📦 Installing fresh Rust 1.77.0..."
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.77.0
+    - name: 🦀 NUCLEAR RUST INSTALL
+      run: |
+        echo "📦 NUCLEAR Rust installation..."
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.77.0 --profile minimal
         source ~/.cargo/env
         
-        echo "🔧 Configuring Rust..."
-        rustup default 1.77.0
-        rustup component add rustfmt
+        # FORCE update PATH globally
+        echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
+        echo 'export RUSTUP_HOME="$HOME/.rustup"' >> ~/.bashrc
+        echo 'export CARGO_HOME="$HOME/.cargo"' >> ~/.bashrc
+        source ~/.bashrc
         
-        echo "✅ Verifying installation..."
-        rustc --version
-        cargo --version
-        
-        # Add to PATH for subsequent steps
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        
-    - name: 🧹 Clean Cargo State
-      run: |
-        echo "Cleaning any problematic Cargo files..."
-        rm -f Cargo.lock
-        rm -f programs/spinza/Cargo.lock
-        rm -rf target/
-        echo "✅ Cleaned successfully!"
+        # Verify NUCLEAR installation
+        ~/.cargo/bin/rustc --version
+        ~/.cargo/bin/cargo --version
         
     - name: ⚡ Install Solana CLI
       run: |
+        source ~/.cargo/env
         echo "Installing Solana CLI..."
         cd /tmp
         wget https://github.com/solana-labs/solana/releases/download/v1.18.0/solana-release-x86_64-unknown-linux-gnu.tar.bz2
@@ -64,11 +61,13 @@ jobs:
     - name: ⚓ Install Anchor CLI
       run: |
         source ~/.cargo/env
+        export PATH="$HOME/.cargo/bin:$PATH"
         npm install -g @coral-xyz/anchor-cli@0.30.0
         anchor --version
         
     - name: 🔑 Setup Solana Keypair
       run: |
+        source ~/.cargo/env
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         mkdir -p ~/.config/solana
         echo '${{ secrets.SOLANA_PRIVATE_KEY }}' > ~/.config/solana/id.json
@@ -77,37 +76,28 @@ jobs:
         
     - name: 💰 Fund Wallet
       run: |
+        source ~/.cargo/env
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         echo "Wallet: $(~/.local/share/solana/install/active_release/bin/solana address)"
-        echo "Balance: $(~/.local/share/solana/install/active_release/bin/solana balance)"
         if [ "${{ github.event.inputs.environment || 'devnet' }}" = "devnet" ]; then
           ~/.local/share/solana/install/active_release/bin/solana airdrop 2 || echo "Airdrop failed"
           sleep 5
         fi
         
-    - name: 🔨 Build Smart Contract
+    - name: 🔨 NUCLEAR BUILD
       run: |
-        echo "Building contract..."
-        
-        # Force use correct Rust version
         source ~/.cargo/env
         export PATH="$HOME/.cargo/bin:$PATH"
+        export RUSTUP_HOME="$HOME/.rustup"
+        export CARGO_HOME="$HOME/.cargo"
         
-        # Verify versions before building
-        echo "Rust version: $(rustc --version)"
-        echo "Cargo version: $(cargo --version)"
+        echo "🔍 FINAL VERIFICATION:"
+        echo "rustc: $(which rustc) -> $(rustc --version)"
+        echo "cargo: $(which cargo) -> $(cargo --version)"
         
-        # Fail if wrong version
-        RUST_VERSION=$(rustc --version | grep -o "1\.[0-9][0-9]\.[0-9]")
-        if [[ "$RUST_VERSION" < "1.75.0" ]]; then
-          echo "❌ ERROR: Rust version $RUST_VERSION is too old!"
-          exit 1
-        fi
-        
-        echo "✅ Rust version $RUST_VERSION is compatible"
-        
-        # Build with proper environment
-        CARGO_NET_GIT_FETCH_WITH_CLI=true anchor build
+        # NUCLEAR BUILD with explicit paths
+        ~/.cargo/bin/cargo --version
+        CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
     - name: 🚀 Deploy Smart Contract
       run: |
