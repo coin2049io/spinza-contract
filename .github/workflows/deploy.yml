@@ -20,106 +20,219 @@ jobs:
     - name: 📥 Checkout code
       uses: actions/checkout@v4
       
-    - name: 🧹 NUCLEAR CLEAN
+    - name: 🦀 Install Rust (Complete Fix)
       run: |
-        echo "🧹 NUCLEAR CLEAN - Removing EVERYTHING..."
-        sudo apt-get remove -y rustc cargo || true
-        sudo apt-get autoremove -y || true
+        echo "🧹 Completely removing any existing Rust..."
         rustup self uninstall -y || true
-        rm -rf ~/.rustup ~/.cargo /usr/local/cargo /usr/local/rustup || true
-        sudo rm -rf /usr/bin/rustc /usr/bin/cargo || true
+        rm -rf ~/.rustup ~/.cargo || true
         
-    - name: 🦀 NUCLEAR RUST INSTALL
-      run: |
-        echo "📦 NUCLEAR Rust installation..."
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.77.0 --profile minimal
+        echo "📦 Installing fresh Rust 1.77.0..."
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.77.0
         source ~/.cargo/env
         
-        # FORCE update PATH globally
-        echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
-        echo 'export RUSTUP_HOME="$HOME/.rustup"' >> ~/.bashrc
-        echo 'export CARGO_HOME="$HOME/.cargo"' >> ~/.bashrc
-        source ~/.bashrc
+        echo "🔧 Configuring Rust..."
+        rustup default 1.77.0
+        rustup component add rustfmt
         
-        # Verify NUCLEAR installation
-        ~/.cargo/bin/rustc --version
-        ~/.cargo/bin/cargo --version
+        echo "✅ Verifying installation..."
+        rustc --version
+        cargo --version
         
-    - name: ⚡ Install Solana CLI
+        # Add to PATH for subsequent steps
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        
+    - name: 🧹 Clean Cargo State
       run: |
-        source ~/.cargo/env
-        echo "Installing Solana CLI..."
+        echo "Cleaning any problematic Cargo files..."
+        rm -f Cargo.lock
+        rm -f programs/spinza/Cargo.lock
+        rm -rf target/
+        echo "✅ Cleaned successfully!"
+        
+    - name: ⚡ Install Solana CLI (Alternative Method)
+      run: |
+        echo "Installing Solana CLI using reliable method..."
+        
+        # Download and extract Solana binaries directly
         cd /tmp
         wget https://github.com/solana-labs/solana/releases/download/v1.18.0/solana-release-x86_64-unknown-linux-gnu.tar.bz2
         tar -xjf solana-release-x86_64-unknown-linux-gnu.tar.bz2
+        
+        # Create directory and copy binaries (with recursive flag)
         mkdir -p ~/.local/share/solana/install/active_release
         cp -r solana-release/* ~/.local/share/solana/install/active_release/
         chmod +x ~/.local/share/solana/install/active_release/bin/*
+        
+        # Add to PATH
         echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+        
+        # Verify installation
         ~/.local/share/solana/install/active_release/bin/solana --version
+        echo "✅ Solana CLI installed successfully!"
         
     - name: ⚓ Install Anchor CLI
       run: |
-        source ~/.cargo/env
-        export PATH="$HOME/.cargo/bin:$PATH"
         npm install -g @coral-xyz/anchor-cli@0.30.0
         anchor --version
         
     - name: 🔑 Setup Solana Keypair
       run: |
-        source ~/.cargo/env
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         mkdir -p ~/.config/solana
         echo '${{ secrets.SOLANA_PRIVATE_KEY }}' > ~/.config/solana/id.json
         chmod 600 ~/.config/solana/id.json
-        ~/.local/share/solana/install/active_release/bin/solana config set --url ${{ github.event.inputs.environment || 'devnet' }}
+        $HOME/.local/share/solana/install/active_release/bin/solana config set --url ${{ github.event.inputs.environment || 'devnet' }}
+        echo "Using cluster: $($HOME/.local/share/solana/install/active_release/bin/solana config get | grep 'RPC URL')"
         
-    - name: 💰 Fund Wallet
+    - name: 💰 Check and Fund Wallet
       run: |
-        source ~/.cargo/env
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-        echo "Wallet: $(~/.local/share/solana/install/active_release/bin/solana address)"
+        echo "Wallet address: $($HOME/.local/share/solana/install/active_release/bin/solana address)"
+        echo "Current balance: $($HOME/.local/share/solana/install/active_release/bin/solana balance)"
+        
         if [ "${{ github.event.inputs.environment || 'devnet' }}" = "devnet" ]; then
-          ~/.local/share/solana/install/active_release/bin/solana airdrop 2 || echo "Airdrop failed"
+          echo "Requesting airdrop for devnet..."
+          $HOME/.local/share/solana/install/active_release/bin/solana airdrop 2 || echo "Airdrop failed, continuing with existing balance"
           sleep 5
+          echo "Balance after airdrop: $($HOME/.local/share/solana/install/active_release/bin/solana balance)"
+        else
+          echo "Mainnet deployment - ensure wallet has sufficient SOL"
         fi
         
-    - name: 🔨 NUCLEAR BUILD
+    - name: 🔨 Build Smart Contract (NUCLEAR OPTION)
       run: |
+        echo "Building contract with NUCLEAR OPTION..."
+        
+        # FORCE everything to use our Rust
         source ~/.cargo/env
         export PATH="$HOME/.cargo/bin:$PATH"
         export RUSTUP_HOME="$HOME/.rustup"
         export CARGO_HOME="$HOME/.cargo"
         
-        echo "🔍 FINAL VERIFICATION:"
-        echo "rustc: $(which rustc) -> $(rustc --version)"
-        echo "cargo: $(which cargo) -> $(cargo --version)"
+        # FORCE Cargo to use specific rustc
+        export RUSTC="$HOME/.cargo/bin/rustc"
+        export CARGO="$HOME/.cargo/bin/cargo"
         
-        # NUCLEAR BUILD with explicit paths
-        ~/.cargo/bin/cargo --version
-        CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
+        # Verify EVERYTHING
+        echo "System PATH: $PATH"
+        echo "RUSTC path: $(which rustc)"
+        echo "CARGO path: $(which cargo)"
+        echo "Rust version: $(rustc --version)"
+        echo "Cargo version: $(cargo --version)"
         
-    - name: 🚀 Deploy Smart Contract
+        # FORCE Cargo to show which rustc it's using
+        cargo --version -v
+        
+        # Build with FORCED environment
+        env RUSTC="$HOME/.cargo/bin/rustc" CARGO="$HOME/.cargo/bin/cargo" CARGO_NET_GIT_FETCH_WITH_CLI=true anchor build
+        
+        # NUCLEAR: Ensure the .so file is in the right place
+        echo "🔍 Checking build output..."
+        echo "All .so files found:"
+        find . -name "*.so" -type f || echo "No .so files found"
+        
+        echo "Target directory contents:"
+        ls -la target/ || echo "No target directory"
+        ls -la target/deploy/ || echo "No target/deploy directory"
+        ls -la target/release/ || echo "No target/release directory"
+        
+        # NUCLEAR: Ensure deploy directory exists and copy .so file
+        mkdir -p target/deploy
+        
+        # Find and copy the .so file
+        if [ -f "target/release/spinza.so" ]; then
+          echo "✅ Found spinza.so in target/release/, copying to target/deploy/"
+          cp target/release/spinza.so target/deploy/
+        else
+          echo "🔍 Searching for spinza.so in all locations..."
+          SO_FILE=$(find . -name "spinza.so" -type f | head -1)
+          if [ -n "$SO_FILE" ]; then
+            echo "✅ Found .so file at: $SO_FILE"
+            cp "$SO_FILE" target/deploy/spinza.so
+          else
+            echo "❌ ERROR: Could not find spinza.so file anywhere!"
+            echo "All available .so files:"
+            find . -name "*.so" -type f
+            exit 1
+          fi
+        fi
+        
+        echo "✅ Final check - target/deploy contents:"
+        ls -la target/deploy/
+        
+    - name: 🚀 Deploy Smart Contract (NUCLEAR VERSION)
       run: |
-        source ~/.cargo/env
-        echo "Deploying..."
+        echo "Deploying to ${{ github.event.inputs.environment || 'devnet' }}..."
+        
+        # Final verification before deployment
+        echo "🔍 Pre-deployment verification:"
+        ls -la target/deploy/ || echo "No target/deploy directory"
+        
+        if [ ! -f "target/deploy/spinza.so" ]; then
+          echo "❌ ERROR: spinza.so not found in target/deploy/"
+          echo "Searching for any .so files:"
+          find . -name "*.so" -type f
+          
+          # Last resort: find and copy any spinza.so
+          SO_FILE=$(find . -name "spinza.so" -type f | head -1)
+          if [ -n "$SO_FILE" ]; then
+            echo "🆘 EMERGENCY: Found .so file at: $SO_FILE"
+            mkdir -p target/deploy
+            cp "$SO_FILE" target/deploy/spinza.so
+          else
+            echo "💀 FATAL: No spinza.so found anywhere!"
+            exit 1
+          fi
+        fi
+        
+        echo "✅ spinza.so confirmed in target/deploy/"
+        echo "File size: $(stat -f%z target/deploy/spinza.so 2>/dev/null || stat -c%s target/deploy/spinza.so 2>/dev/null || echo 'unknown')"
+        
+        # Deploy!
         anchor deploy --provider.cluster ${{ github.event.inputs.environment || 'devnet' }}
+        echo "✅ Deployment completed!"
         
-    - name: 📊 Get Program ID
+    - name: 📊 Verify Deployment
       run: |
-        source ~/.cargo/env
+        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
-        echo "🎉 SUCCESS! Program ID: $PROGRAM_ID"
-        echo "PROGRAM_ID=$PROGRAM_ID" > deployment_info.txt
+        echo "✅ Smart Contract Deployed Successfully!"
+        echo "📍 Program ID: $PROGRAM_ID"
+        echo "🌐 Network: ${{ github.event.inputs.environment || 'devnet' }}"
+        echo "💰 Remaining balance: $($HOME/.local/share/solana/install/active_release/bin/solana balance)"
         
-    - name: 🎯 Initialize Game
+        $HOME/.local/share/solana/install/active_release/bin/solana program show $PROGRAM_ID
+        
+    - name: 🎯 Initialize Game State
       run: |
+        echo "Initializing game state..."
         cd scripts
         npm install
         node initialize.js
+        echo "Game state initialized successfully!"
         
-    - name: 📤 Upload Results
+    - name: 📋 Deployment Summary
+      run: |
+        PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
+        echo "🎉 DEPLOYMENT COMPLETE!"
+        echo "=================================="
+        echo "📍 Program ID: $PROGRAM_ID"
+        echo "🌐 Network: ${{ github.event.inputs.environment || 'devnet' }}"
+        echo "👑 Operator Wallet: E7Y3q3gNA8DKGrXydpCnv4cTQnbkzM1wx3maHqJDv7n6"
+        echo "💰 Min Bet: 0.1 SOL"
+        echo "💰 Max Bet: 100 SOL"
+        echo "👥 Max Players: 50"
+        echo "💼 Commission: 10%"
+        echo "=================================="
+        
+        echo "PROGRAM_ID=$PROGRAM_ID" > deployment_info.txt
+        echo "NETWORK=${{ github.event.inputs.environment || 'devnet' }}" >> deployment_info.txt
+        
+    - name: 📤 Upload Deployment Info
       uses: actions/upload-artifact@v4
       with:
         name: deployment-info
-        path: deployment_info.txt
+        path: |
+          deployment_info.txt
+          target/idl/spinza.json
