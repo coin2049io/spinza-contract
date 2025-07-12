@@ -31,29 +31,35 @@ jobs:
       run: |
         sh -c "$(curl -sSfL https://release.solana.com/v1.18.0/install)"
         echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+        # Verify installation
+        $HOME/.local/share/solana/install/active_release/bin/solana --version
         
     - name: ⚓ Install Anchor CLI
       run: |
         npm install -g @coral-xyz/anchor-cli@0.30.0
+        anchor --version
         
     - name: 🔑 Setup Solana Keypair
       run: |
+        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         mkdir -p ~/.config/solana
         echo '${{ secrets.SOLANA_PRIVATE_KEY }}' > ~/.config/solana/id.json
         chmod 600 ~/.config/solana/id.json
-        solana config set --url ${{ github.event.inputs.environment || 'devnet' }}
-        echo "Using cluster: $(solana config get | grep 'RPC URL')"
+        $HOME/.local/share/solana/install/active_release/bin/solana config set --url ${{ github.event.inputs.environment || 'devnet' }}
+        echo "Using cluster: $($HOME/.local/share/solana/install/active_release/bin/solana config get | grep 'RPC URL')"
         
     - name: 💰 Check and Fund Wallet
       run: |
-        echo "Wallet address: $(solana address)"
-        echo "Current balance: $(solana balance)"
+        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+        echo "Wallet address: $($HOME/.local/share/solana/install/active_release/bin/solana address)"
+        echo "Current balance: $($HOME/.local/share/solana/install/active_release/bin/solana balance)"
         
         if [ "${{ github.event.inputs.environment || 'devnet' }}" = "devnet" ]; then
           echo "Requesting airdrop for devnet..."
-          solana airdrop 2 || echo "Airdrop failed, continuing with existing balance"
+          $HOME/.local/share/solana/install/active_release/bin/solana airdrop 2 || echo "Airdrop failed, continuing with existing balance"
           sleep 5
-          echo "Balance after airdrop: $(solana balance)"
+          echo "Balance after airdrop: $($HOME/.local/share/solana/install/active_release/bin/solana balance)"
         else
           echo "Mainnet deployment - ensure wallet has sufficient SOL"
         fi
@@ -72,13 +78,14 @@ jobs:
         
     - name: 📊 Verify Deployment
       run: |
+        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
         echo "✅ Smart Contract Deployed Successfully!"
         echo "📍 Program ID: $PROGRAM_ID"
         echo "🌐 Network: ${{ github.event.inputs.environment || 'devnet' }}"
-        echo "💰 Remaining balance: $(solana balance)"
+        echo "💰 Remaining balance: $($HOME/.local/share/solana/install/active_release/bin/solana balance)"
         
-        solana program show $PROGRAM_ID
+        $HOME/.local/share/solana/install/active_release/bin/solana program show $PROGRAM_ID
         
     - name: 🎯 Initialize Game State
       run: |
