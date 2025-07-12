@@ -23,31 +23,29 @@ jobs:
     - name: 🦀 Install Rust
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: stable
+        toolchain: 1.75.0
         profile: minimal
         override: true
         
-    - name: ⚡ Install Solana CLI (Alternative Method)
+    - name: 🧹 Clean Cargo State
       run: |
-        echo "Installing Solana CLI using reliable method..."
+        echo "Cleaning any problematic Cargo files..."
+        rm -f Cargo.lock
+        rm -f programs/spinza/Cargo.lock
+        rm -rf target/
+        echo "✅ Cleaned successfully!"
         
-        # Download and extract Solana binaries directly
+    - name: ⚡ Install Solana CLI
+      run: |
+        echo "Installing Solana CLI..."
         cd /tmp
         wget https://github.com/solana-labs/solana/releases/download/v1.18.0/solana-release-x86_64-unknown-linux-gnu.tar.bz2
         tar -xjf solana-release-x86_64-unknown-linux-gnu.tar.bz2
-        
-        # Create directory and copy binaries (with recursive flag)
         mkdir -p ~/.local/share/solana/install/active_release
         cp -r solana-release/* ~/.local/share/solana/install/active_release/
         chmod +x ~/.local/share/solana/install/active_release/bin/*
-        
-        # Add to PATH
         echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-        
-        # Verify installation
         ~/.local/share/solana/install/active_release/bin/solana --version
-        echo "✅ Solana CLI installed successfully!"
         
     - name: ⚓ Install Anchor CLI
       run: |
@@ -61,75 +59,42 @@ jobs:
         echo '${{ secrets.SOLANA_PRIVATE_KEY }}' > ~/.config/solana/id.json
         chmod 600 ~/.config/solana/id.json
         ~/.local/share/solana/install/active_release/bin/solana config set --url ${{ github.event.inputs.environment || 'devnet' }}
-        echo "Using cluster: $(~/.local/share/solana/install/active_release/bin/solana config get | grep 'RPC URL')"
         
-    - name: 💰 Check and Fund Wallet
+    - name: 💰 Fund Wallet
       run: |
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-        echo "Wallet address: $(~/.local/share/solana/install/active_release/bin/solana address)"
-        echo "Current balance: $(~/.local/share/solana/install/active_release/bin/solana balance)"
-        
+        echo "Wallet: $(~/.local/share/solana/install/active_release/bin/solana address)"
+        echo "Balance: $(~/.local/share/solana/install/active_release/bin/solana balance)"
         if [ "${{ github.event.inputs.environment || 'devnet' }}" = "devnet" ]; then
-          echo "Requesting airdrop for devnet..."
-          ~/.local/share/solana/install/active_release/bin/solana airdrop 2 || echo "Airdrop failed, continuing with existing balance"
+          ~/.local/share/solana/install/active_release/bin/solana airdrop 2 || echo "Airdrop failed"
           sleep 5
-          echo "Balance after airdrop: $(~/.local/share/solana/install/active_release/bin/solana balance)"
-        else
-          echo "Mainnet deployment - ensure wallet has sufficient SOL"
         fi
         
     - name: 🔨 Build Smart Contract
       run: |
-        echo "Building Spinza smart contract..."
-        anchor build
-        echo "Build completed successfully!"
+        echo "Building contract..."
+        rustup update
+        CARGO_NET_GIT_FETCH_WITH_CLI=true anchor build --release
         
     - name: 🚀 Deploy Smart Contract
       run: |
-        echo "Deploying to ${{ github.event.inputs.environment || 'devnet' }}..."
+        echo "Deploying..."
         anchor deploy --provider.cluster ${{ github.event.inputs.environment || 'devnet' }}
-        echo "Deployment completed!"
         
-    - name: 📊 Verify Deployment
+    - name: 📊 Get Program ID
       run: |
-        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
-        echo "✅ Smart Contract Deployed Successfully!"
-        echo "📍 Program ID: $PROGRAM_ID"
-        echo "🌐 Network: ${{ github.event.inputs.environment || 'devnet' }}"
-        echo "💰 Remaining balance: $(~/.local/share/solana/install/active_release/bin/solana balance)"
+        echo "🎉 SUCCESS! Program ID: $PROGRAM_ID"
+        echo "PROGRAM_ID=$PROGRAM_ID" > deployment_info.txt
         
-        ~/.local/share/solana/install/active_release/bin/solana program show $PROGRAM_ID
-        
-    - name: 🎯 Initialize Game State
+    - name: 🎯 Initialize Game
       run: |
-        echo "Initializing game state..."
         cd scripts
         npm install
         node initialize.js
-        echo "Game state initialized successfully!"
         
-    - name: 📋 Deployment Summary
-      run: |
-        PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
-        echo "🎉 DEPLOYMENT COMPLETE!"
-        echo "=================================="
-        echo "📍 Program ID: $PROGRAM_ID"
-        echo "🌐 Network: ${{ github.event.inputs.environment || 'devnet' }}"
-        echo "👑 Operator Wallet: E7Y3q3gNA8DKGrXydpCnv4cTQnbkzM1wx3maHqJDv7n6"
-        echo "💰 Min Bet: 0.1 SOL"
-        echo "💰 Max Bet: 100 SOL"
-        echo "👥 Max Players: 50"
-        echo "💼 Commission: 10%"
-        echo "=================================="
-        
-        echo "PROGRAM_ID=$PROGRAM_ID" > deployment_info.txt
-        echo "NETWORK=${{ github.event.inputs.environment || 'devnet' }}" >> deployment_info.txt
-        
-    - name: 📤 Upload Deployment Info
+    - name: 📤 Upload Results
       uses: actions/upload-artifact@v4
       with:
         name: deployment-info
-        path: |
-          deployment_info.txt
-          target/idl/spinza.json
+        path: deployment_info.txt
