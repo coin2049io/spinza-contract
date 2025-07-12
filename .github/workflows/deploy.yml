@@ -27,13 +27,27 @@ jobs:
         profile: minimal
         override: true
         
-    - name: ⚡ Install Solana CLI
+    - name: ⚡ Install Solana CLI (Alternative Method)
       run: |
-        sh -c "$(curl -sSfL https://release.solana.com/v1.18.0/install)"
+        echo "Installing Solana CLI using reliable method..."
+        
+        # Download and extract Solana binaries directly
+        cd /tmp
+        wget https://github.com/solana-labs/solana/releases/download/v1.18.0/solana-release-x86_64-unknown-linux-gnu.tar.bz2
+        tar -xjf solana-release-x86_64-unknown-linux-gnu.tar.bz2
+        
+        # Create directory and copy binaries
+        mkdir -p ~/.local/share/solana/install/active_release/bin
+        cp solana-release/bin/* ~/.local/share/solana/install/active_release/bin/
+        chmod +x ~/.local/share/solana/install/active_release/bin/*
+        
+        # Add to PATH
         echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+        
         # Verify installation
-        $HOME/.local/share/solana/install/active_release/bin/solana --version
+        ~/.local/share/solana/install/active_release/bin/solana --version
+        echo "✅ Solana CLI installed successfully!"
         
     - name: ⚓ Install Anchor CLI
       run: |
@@ -46,20 +60,20 @@ jobs:
         mkdir -p ~/.config/solana
         echo '${{ secrets.SOLANA_PRIVATE_KEY }}' > ~/.config/solana/id.json
         chmod 600 ~/.config/solana/id.json
-        $HOME/.local/share/solana/install/active_release/bin/solana config set --url ${{ github.event.inputs.environment || 'devnet' }}
-        echo "Using cluster: $($HOME/.local/share/solana/install/active_release/bin/solana config get | grep 'RPC URL')"
+        ~/.local/share/solana/install/active_release/bin/solana config set --url ${{ github.event.inputs.environment || 'devnet' }}
+        echo "Using cluster: $(~/.local/share/solana/install/active_release/bin/solana config get | grep 'RPC URL')"
         
     - name: 💰 Check and Fund Wallet
       run: |
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-        echo "Wallet address: $($HOME/.local/share/solana/install/active_release/bin/solana address)"
-        echo "Current balance: $($HOME/.local/share/solana/install/active_release/bin/solana balance)"
+        echo "Wallet address: $(~/.local/share/solana/install/active_release/bin/solana address)"
+        echo "Current balance: $(~/.local/share/solana/install/active_release/bin/solana balance)"
         
         if [ "${{ github.event.inputs.environment || 'devnet' }}" = "devnet" ]; then
           echo "Requesting airdrop for devnet..."
-          $HOME/.local/share/solana/install/active_release/bin/solana airdrop 2 || echo "Airdrop failed, continuing with existing balance"
+          ~/.local/share/solana/install/active_release/bin/solana airdrop 2 || echo "Airdrop failed, continuing with existing balance"
           sleep 5
-          echo "Balance after airdrop: $($HOME/.local/share/solana/install/active_release/bin/solana balance)"
+          echo "Balance after airdrop: $(~/.local/share/solana/install/active_release/bin/solana balance)"
         else
           echo "Mainnet deployment - ensure wallet has sufficient SOL"
         fi
@@ -83,9 +97,9 @@ jobs:
         echo "✅ Smart Contract Deployed Successfully!"
         echo "📍 Program ID: $PROGRAM_ID"
         echo "🌐 Network: ${{ github.event.inputs.environment || 'devnet' }}"
-        echo "💰 Remaining balance: $($HOME/.local/share/solana/install/active_release/bin/solana balance)"
+        echo "💰 Remaining balance: $(~/.local/share/solana/install/active_release/bin/solana balance)"
         
-        $HOME/.local/share/solana/install/active_release/bin/solana program show $PROGRAM_ID
+        ~/.local/share/solana/install/active_release/bin/solana program show $PROGRAM_ID
         
     - name: 🎯 Initialize Game State
       run: |
