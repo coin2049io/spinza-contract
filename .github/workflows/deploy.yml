@@ -36,9 +36,9 @@ jobs:
         wget https://github.com/solana-labs/solana/releases/download/v1.18.0/solana-release-x86_64-unknown-linux-gnu.tar.bz2
         tar -xjf solana-release-x86_64-unknown-linux-gnu.tar.bz2
         
-        # Create directory and copy binaries
-        mkdir -p ~/.local/share/solana/install/active_release/bin
-        cp solana-release/bin/* ~/.local/share/solana/install/active_release/bin/
+        # Create directory and copy binaries (with recursive flag)
+        mkdir -p ~/.local/share/solana/install/active_release
+        cp -r solana-release/* ~/.local/share/solana/install/active_release/
         chmod +x ~/.local/share/solana/install/active_release/bin/*
         
         # Add to PATH
