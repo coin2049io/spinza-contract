@@ -99,18 +99,75 @@ jobs:
         ~/.cargo/bin/cargo --version
         CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
-    - name: 🚀 Deploy Smart Contract
+    - name: 🚀 Deploy Smart Contract (10000% NUCLEAR SOLUTION)
       run: |
-        echo "Deploying to ${{ github.event.inputs.environment || 'devnet' }}..."
+        echo "🚀 DEPLOYING WITH 10000% NUCLEAR SOLUTION..."
         
-        # Ensure .so file is in correct location for deployment
-        if [ ! -f "target/deploy/spinza.so" ] && [ -f "target/release/spinza.so" ]; then
-          mkdir -p target/deploy
-          cp target/release/spinza.so target/deploy/
+        # STEP 1: Find the .so file EVERYWHERE
+        echo "🔍 SEARCHING FOR ALL .so FILES:"
+        find . -name "*.so" -type f | head -20
+        
+        # STEP 2: Find our specific spinza.so file
+        SPINZA_SO=$(find . -name "spinza.so" -type f | head -1)
+        
+        if [ -z "$SPINZA_SO" ]; then
+          echo "💀 FATAL: No spinza.so found anywhere!"
+          echo "All .so files:"
+          find . -name "*.so" -type f
+          exit 1
         fi
         
-        anchor deploy --provider.cluster ${{ github.event.inputs.environment || 'devnet' }}
-        echo "Deployment completed!"
+        echo "✅ FOUND spinza.so at: $SPINZA_SO"
+        
+        # STEP 3: NUCLEAR - Copy to ALL possible locations
+        echo "📋 COPYING TO ALL POSSIBLE LOCATIONS:"
+        mkdir -p target/deploy
+        mkdir -p target/release
+        mkdir -p target/debug
+        
+        cp "$SPINZA_SO" target/deploy/spinza.so
+        cp "$SPINZA_SO" target/release/spinza.so
+        cp "$SPINZA_SO" target/debug/spinza.so
+        
+        echo "✅ COPIED TO ALL LOCATIONS"
+        
+        # STEP 4: Verify files exist
+        echo "🔍 VERIFICATION:"
+        ls -la target/deploy/spinza.so || echo "❌ Not in target/deploy"
+        ls -la target/release/spinza.so || echo "❌ Not in target/release"
+        
+        # STEP 5: NUCLEAR DEPLOY - Try multiple methods
+        echo "🚀 ATTEMPTING DEPLOYMENT..."
+        
+        # Method 1: Standard deploy
+        if anchor deploy --provider.cluster ${{ github.event.inputs.environment || 'devnet' }}; then
+          echo "✅ DEPLOYED WITH METHOD 1 (standard)"
+        else
+          echo "⚠️ METHOD 1 FAILED, TRYING METHOD 2..."
+          
+          # Method 2: Specify program file directly
+          if anchor deploy --provider.cluster ${{ github.event.inputs.environment || 'devnet' }} --program-id $(anchor keys list | grep spinza | awk '{print $2}') target/deploy/spinza.so; then
+            echo "✅ DEPLOYED WITH METHOD 2 (direct file)"
+          else
+            echo "⚠️ METHOD 2 FAILED, TRYING METHOD 3..."
+            
+            # Method 3: Use solana program deploy directly
+            export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+            PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
+            
+            if $HOME/.local/share/solana/install/active_release/bin/solana program deploy target/deploy/spinza.so --program-id $PROGRAM_ID; then
+              echo "✅ DEPLOYED WITH METHOD 3 (solana direct)"
+            else
+              echo "💀 ALL METHODS FAILED!"
+              echo "Final debug info:"
+              ls -la target/deploy/
+              anchor keys list
+              exit 1
+            fi
+          fi
+        fi
+        
+        echo "🎉 DEPLOYMENT SUCCESSFUL!"
         
     - name: 📊 Get Program ID
       run: |
