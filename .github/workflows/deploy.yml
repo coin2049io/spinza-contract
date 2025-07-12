@@ -1,7 +1,7 @@
 name: 🚀 Deploy Spinza.io Smart Contract
 
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
     inputs:
       environment:
         description: 'Deployment environment'
@@ -15,7 +15,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'devnet' }}
     
     steps:
     - name: 📥 Checkout code
@@ -27,17 +26,6 @@ jobs:
         toolchain: stable
         profile: minimal
         override: true
-        
-    - name: 📦 Cache Cargo dependencies
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         
     - name: ⚡ Install Solana CLI
       run: |
@@ -76,11 +64,6 @@ jobs:
         anchor build
         echo "Build completed successfully!"
         
-    - name: 📋 Show Program Info
-      run: |
-        echo "Program binary size: $(ls -lh target/deploy/spinza.so)"
-        echo "Program ID will be: $(anchor keys list)"
-        
     - name: 🚀 Deploy Smart Contract
       run: |
         echo "Deploying to ${{ github.event.inputs.environment || 'devnet' }}..."
@@ -95,7 +78,6 @@ jobs:
         echo "🌐 Network: ${{ github.event.inputs.environment || 'devnet' }}"
         echo "💰 Remaining balance: $(solana balance)"
         
-        # Verify program exists on-chain
         solana program show $PROGRAM_ID
         
     - name: 🎯 Initialize Game State
@@ -119,27 +101,9 @@ jobs:
         echo "👥 Max Players: 50"
         echo "💼 Commission: 10%"
         echo "=================================="
-        echo ""
-        echo "🔧 Next Steps:"
-        echo "1. Update your frontend PROGRAM_ID to: $PROGRAM_ID"
-        echo "2. Test wallet connection and betting"
-        echo "3. Enjoy your deployed game! 🎮"
         
-        # Save deployment info to file
-        cat > deployment_info.txt << EOF
-SPINZA.IO DEPLOYMENT INFO
-========================
-Program ID: $PROGRAM_ID
-Network: ${{ github.event.inputs.environment || 'devnet' }}
-Deployed At: $(date)
-Operator Wallet: E7Y3q3gNA8DKGrXydpCnv4cTQnbkzM1wx3maHqJDv7n6
-Min Bet: 0.1 SOL
-Max Bet: 100 SOL
-Max Players: 50
-Commission Rate: 10%
-
-Explorer Link: https://explorer.solana.com/address/$PROGRAM_ID?cluster=${{ github.event.inputs.environment || 'devnet' }}
-EOF
+        echo "PROGRAM_ID=$PROGRAM_ID" > deployment_info.txt
+        echo "NETWORK=${{ github.event.inputs.environment || 'devnet' }}" >> deployment_info.txt
         
     - name: 📤 Upload Deployment Info
       uses: actions/upload-artifact@v3
@@ -148,4 +112,3 @@ EOF
         path: |
           deployment_info.txt
           target/idl/spinza.json
-          target/deploy/spinza.so
