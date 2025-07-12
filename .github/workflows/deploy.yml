@@ -106,7 +106,7 @@ jobs:
         echo "NETWORK=${{ github.event.inputs.environment || 'devnet' }}" >> deployment_info.txt
         
     - name: 📤 Upload Deployment Info
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: deployment-info
         path: |
