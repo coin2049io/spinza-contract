@@ -1,7 +1,6 @@
 [package]
 name = "spinza"
 version = "0.1.0"
-description = "Spinza.io Solana betting game smart contract"
 edition = "2021"
 
 [lib]
