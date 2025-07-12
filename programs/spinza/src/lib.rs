@@ -424,15 +424,6 @@ pub struct PlayerBet {
     pub bet_amount: u64,
 }
 
-impl Default for PlayerBet {
-    fn default() -> Self {
-        Self {
-            player: Pubkey::default(),
-            bet_amount: 0,
-        }
-    }
-}
-
 // Events
 #[event]
 pub struct GameStateInitialized {
