@@ -20,13 +20,26 @@ jobs:
     - name: 📥 Checkout code
       uses: actions/checkout@v4
       
-    - name: 🦀 Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: 1.77.0
-        profile: minimal
-        override: true
-        components: rustfmt
+    - name: 🦀 Install Rust (Complete Fix)
+      run: |
+        echo "🧹 Completely removing any existing Rust..."
+        rustup self uninstall -y || true
+        rm -rf ~/.rustup ~/.cargo || true
+        
+        echo "📦 Installing fresh Rust 1.77.0..."
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.77.0
+        source ~/.cargo/env
+        
+        echo "🔧 Configuring Rust..."
+        rustup default 1.77.0
+        rustup component add rustfmt
+        
+        echo "✅ Verifying installation..."
+        rustc --version
+        cargo --version
+        
+        # Add to PATH for subsequent steps
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
         
     - name: 🧹 Clean Cargo State
       run: |
@@ -50,6 +63,7 @@ jobs:
         
     - name: ⚓ Install Anchor CLI
       run: |
+        source ~/.cargo/env
         npm install -g @coral-xyz/anchor-cli@0.30.0
         anchor --version
         
@@ -74,20 +88,36 @@ jobs:
     - name: 🔨 Build Smart Contract
       run: |
         echo "Building contract..."
-        # Ensure we have the right Rust version
-        rustc --version
-        cargo --version
+        
+        # Force use correct Rust version
+        source ~/.cargo/env
+        export PATH="$HOME/.cargo/bin:$PATH"
+        
+        # Verify versions before building
+        echo "Rust version: $(rustc --version)"
+        echo "Cargo version: $(cargo --version)"
+        
+        # Fail if wrong version
+        RUST_VERSION=$(rustc --version | grep -o "1\.[0-9][0-9]\.[0-9]")
+        if [[ "$RUST_VERSION" < "1.75.0" ]]; then
+          echo "❌ ERROR: Rust version $RUST_VERSION is too old!"
+          exit 1
+        fi
+        
+        echo "✅ Rust version $RUST_VERSION is compatible"
         
         # Build with proper environment
         CARGO_NET_GIT_FETCH_WITH_CLI=true anchor build
         
     - name: 🚀 Deploy Smart Contract
       run: |
+        source ~/.cargo/env
         echo "Deploying..."
         anchor deploy --provider.cluster ${{ github.event.inputs.environment || 'devnet' }}
         
     - name: 📊 Get Program ID
       run: |
+        source ~/.cargo/env
         PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
         echo "🎉 SUCCESS! Program ID: $PROGRAM_ID"
         echo "PROGRAM_ID=$PROGRAM_ID" > deployment_info.txt
