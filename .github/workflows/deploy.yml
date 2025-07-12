@@ -98,11 +98,12 @@ jobs:
         # NUCLEAR BUILD with explicit paths
         ~/.cargo/bin/cargo --version
         
-        # Try Solana-specific build first to avoid ELF issues
+        # Try Solana-specific build first with FORCED rustc
         echo "🚀 Attempting Solana-compatible build..."
         if command -v cargo-build-sbf >/dev/null 2>&1; then
-          echo "✅ Using cargo-build-sbf for Solana compatibility"
-          CARGO_NET_GIT_FETCH_WITH_CLI=true cargo-build-sbf --manifest-path programs/spinza/Cargo.toml
+          echo "✅ Using cargo-build-sbf with FORCED rustc 1.77.0"
+          # FORCE cargo-build-sbf to use our rustc
+          RUSTC="$HOME/.cargo/bin/rustc" CARGO="$HOME/.cargo/bin/cargo" CARGO_NET_GIT_FETCH_WITH_CLI=true cargo-build-sbf --manifest-path programs/spinza/Cargo.toml
         else
           echo "⚠️ cargo-build-sbf not found, using regular build"
           CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
