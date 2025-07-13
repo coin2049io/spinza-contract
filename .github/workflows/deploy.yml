@@ -99,51 +99,60 @@ jobs:
         ~/.cargo/bin/cargo --version
         CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
-    - name: 🚀 Deploy Smart Contract (FINAL NUCLEAR SEARCH)
+    - name: 🚀 Deploy Smart Contract (NUCLEAR + FILE FIX)
       run: |
-        echo "FINAL NUCLEAR - Checking Solana CLI installation..."
+        echo "Deploying with NUCLEAR version fix + file handling..."
         
-        # CHECK INSIDE SOLANA CLI DIRECTORY
-        echo "🔍 CHECKING SOLANA CLI DIRECTORY:"
-        find ~/.local/share/solana -name "rustc" -type f 2>/dev/null || echo "No rustc in Solana CLI"
-        find ~/.local/share/solana -name "*rust*" -type f 2>/dev/null | head -10 || echo "No rust files in Solana CLI"
-        
-        # CHECK WHAT VERSIONS ARE IN SOLANA
-        for rustc_path in $(find ~/.local/share/solana -name "rustc" -type f 2>/dev/null); do
-          echo "Found Solana rustc at: $rustc_path"
-          $rustc_path --version 2>/dev/null || echo "Failed to get version"
-        done
-        
-        # NUCLEAR: Check anchor's internal paths
-        echo "🔍 CHECKING ANCHOR INTERNALS:"
-        which anchor
-        ls -la $(which anchor)
-        
-        # Check if anchor has internal solana tools
-        anchor --version
-        
-        # FINAL NUCLEAR: RENAME/REMOVE the Solana CLI directory temporarily
-        echo "🔥 TEMPORARILY DISABLING SOLANA CLI..."
+        # NUCLEAR: Disable Solana CLI temporarily (removes 1.72.0-dev rustc)
         mv ~/.local/share/solana ~/.local/share/solana_backup
         
-        # Remove from PATH
-        export PATH=$(echo $PATH | sed 's|[^:]*solana[^:]*:||g')
+        # Use our working Rust
         source ~/.cargo/env
         export PATH="$HOME/.cargo/bin:$PATH"
+        export RUSTC="$HOME/.cargo/bin/rustc"
+        export CARGO="$HOME/.cargo/bin/cargo"
         
-        echo "🔍 VERIFICATION WITHOUT SOLANA CLI:"
-        which rustc
+        echo "🔍 VERIFICATION:"
         rustc --version
         
-        echo "🔨 TRYING ANCHOR BUILD WITHOUT SOLANA CLI..."
-        anchor build || echo "Build failed without Solana CLI"
+        # Check what .so files we have from the build
+        echo "🔍 Looking for .so files..."
+        find . -name "*.so" -type f || echo "No .so files found"
         
-        # If it fails, restore Solana CLI
-        echo "🔄 RESTORING SOLANA CLI..."
+        # Find libspinza.so and copy to deploy directory
+        LIBSPINZA_SO=$(find . -name "libspinza.so" -type f | grep -v deps | head -1)
+        if [ -z "$LIBSPINZA_SO" ]; then
+          LIBSPINZA_SO=$(find . -name "libspinza.so" -type f | head -1)
+        fi
+        
+        if [ -n "$LIBSPINZA_SO" ]; then
+          echo "✅ Found libspinza.so at: $LIBSPINZA_SO"
+          mkdir -p target/deploy
+          cp "$LIBSPINZA_SO" target/deploy/spinza.so
+          echo "✅ Copied to target/deploy/spinza.so"
+          ls -la target/deploy/spinza.so
+        else
+          echo "❌ No libspinza.so found!"
+          exit 1
+        fi
+        
+        # Rename problematic ELF sections
+        echo "🧹 Fixing ELF sections..."
+        objcopy --rename-section=.note.gnu.build-id=.note.build target/deploy/spinza.so || echo "Section rename failed"
+        objcopy --rename-section=.gcc_except_table=.gcc_except target/deploy/spinza.so || echo "Section rename failed"
+        
+        # Restore Solana CLI for deployment
         mv ~/.local/share/solana_backup ~/.local/share/solana
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         
-        echo "🎉 NUCLEAR DEPLOYMENT SUCCESSFUL!"
+        # Deploy with Solana CLI (more reliable than anchor deploy)
+        echo "🚀 Deploying to devnet..."
+        PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
+        echo "📍 Program ID: $PROGRAM_ID"
+        
+        ~/.local/share/solana/install/active_release/bin/solana program deploy target/deploy/spinza.so --program-id $PROGRAM_ID --url devnet
+        
+        echo "✅ Deployment completed!"
         
     - name: 📊 Get Program ID
       run: |
