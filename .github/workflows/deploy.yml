@@ -84,7 +84,7 @@ jobs:
           sleep 5
         fi
         
-    - name: 🔨 NUCLEAR BUILD
+    - name: 🔨 NUCLEAR BUILD (SOLANA TARGET)
       run: |
         source ~/.cargo/env
         export PATH="$HOME/.cargo/bin:$PATH"
@@ -95,9 +95,19 @@ jobs:
         echo "rustc: $(which rustc) -> $(rustc --version)"
         echo "cargo: $(which cargo) -> $(cargo --version)"
         
-        # NUCLEAR BUILD with explicit paths - BACK TO WORKING VERSION
+        # Install Solana BPF target
+        echo "🎯 Installing Solana BPF target..."
+        ~/.cargo/bin/rustup target add bpfel-unknown-unknown
+        
+        # NUCLEAR BUILD for SOLANA BPF architecture
         ~/.cargo/bin/cargo --version
-        CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
+        echo "🚀 Building for Solana BPF target..."
+        CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --target bpfel-unknown-unknown --manifest-path programs/spinza/Cargo.toml
+        
+        # Check where the BPF binary is located
+        echo "🔍 Looking for BPF binary..."
+        find target -name "*.so" -type f
+        ls -la target/bpfel-unknown-unknown/release/ || echo "BPF target directory not found"
         
     - name: 🚀 Deploy Smart Contract (RENAME ALL LONG SECTIONS)
       run: |
