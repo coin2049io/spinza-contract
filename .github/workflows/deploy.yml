@@ -163,17 +163,33 @@ jobs:
         echo "Using provider URL: $ANCHOR_PROVIDER_URL"
         echo "Using wallet: $ANCHOR_WALLET"
         
-        # Check if Anchor.toml exists in root
-        ls -la Anchor.toml || echo "Anchor.toml not found in root"
+        # Check if IDL file exists
+        echo "🔍 Checking for IDL file..."
+        ls -la target/idl/ || echo "No target/idl directory"
+        ls -la target/idl/spinza.json || echo "spinza.json IDL not found"
         
-        # Install npm dependencies from scripts directory
+        # If IDL doesn't exist, generate it
+        if [ ! -f "target/idl/spinza.json" ]; then
+          echo "🔨 IDL file missing, generating it..."
+          source ~/.cargo/env
+          export PATH="$HOME/.cargo/bin:$PATH"
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          
+          # Generate IDL
+          anchor build || echo "Build failed"
+          
+          # Check if IDL was created
+          ls -la target/idl/spinza.json || echo "IDL still not found after build"
+        else
+          echo "✅ IDL file found"
+        fi
+        
+        # Install npm dependencies
         cd scripts
         npm install
-        
-        # Go back to root directory to run the script (where Anchor.toml is)
         cd ..
         
-        # Run initialization script from root directory
+        # Run initialization script
         node scripts/initialize.js
         
         echo "Game state initialized successfully!"
