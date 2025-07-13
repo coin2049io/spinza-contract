@@ -99,9 +99,9 @@ jobs:
         ~/.cargo/bin/cargo --version
         CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
-    - name: 🚀 Deploy Smart Contract (ELF BYPASS)
+    - name: 🚀 Deploy Smart Contract (ELF RENAME FIX)
       run: |
-        echo "Deploying with ELF bypass..."
+        echo "Deploying with ELF rename fix..."
         
         # Find and copy libspinza.so
         LIBSPINZA_SO=$(find . -name "libspinza.so" -type f | grep -v deps | head -1)
@@ -112,11 +112,22 @@ jobs:
         mkdir -p target/deploy
         cp "$LIBSPINZA_SO" target/deploy/spinza.so
         
-        # Use Solana CLI directly to bypass ELF parsing issues
+        # BRILLIANT FIX: Rename the section to be shorter
+        echo "🏷️ Renaming ELF section to fit 16-byte limit..."
+        
+        # Rename .note.gnu.build-id (18 chars) -> .note.build (11 chars)
+        objcopy --rename-section=.note.gnu.build-id=.note.build target/deploy/spinza.so
+        
+        echo "✅ Section renamed from '.note.gnu.build-id' to '.note.build'"
+        
+        # Verify the fix
+        echo "🔍 Checking section names:"
+        readelf -S target/deploy/spinza.so | grep -E "\[.*\]" | head -10
+        
+        # Deploy with Solana CLI
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
         
-        # Deploy with Solana CLI (bypasses anchor's ELF parser)
         ~/.local/share/solana/install/active_release/bin/solana program deploy target/deploy/spinza.so --program-id $PROGRAM_ID
         
         echo "Deployment completed!"
