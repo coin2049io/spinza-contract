@@ -99,88 +99,64 @@ jobs:
         ~/.cargo/bin/cargo --version
         CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
-    - name: 🚀 Deploy Smart Contract (NUCLEAR BPF + FILE HANDLING)
+    - name: 🚀 Deploy Smart Contract (SOLANA BPF + FORCED RUST)
       run: |
-        echo "Building and deploying with Solana BPF tools + file handling..."
+        echo "Using Solana BPF tools with FORCED Rust version..."
         
-        # NUCLEAR: Disable Solana CLI temporarily during build
-        mv ~/.local/share/solana ~/.local/share/solana_backup
-        
-        # Use our working Rust
+        # KEEP Solana CLI but FORCE our Rust version everywhere
+        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         source ~/.cargo/env
-        export PATH="$HOME/.cargo/bin:$PATH"
+        
+        # NUCLEAR: Force ALL Rust environment variables
         export RUSTC="$HOME/.cargo/bin/rustc"
         export CARGO="$HOME/.cargo/bin/cargo"
+        export RUSTUP_HOME="$HOME/.rustup"
+        export CARGO_HOME="$HOME/.cargo"
+        export RUSTUP_TOOLCHAIN="1.77.0-x86_64-unknown-linux-gnu"
         
-        echo "🔍 VERIFICATION:"
+        # NUCLEAR: Replace system rustc/cargo EVERYWHERE with symlinks
+        sudo rm -f /usr/bin/rustc /usr/bin/cargo /usr/local/bin/rustc /usr/local/bin/cargo
+        sudo ln -sf ~/.cargo/bin/rustc /usr/bin/rustc
+        sudo ln -sf ~/.cargo/bin/cargo /usr/bin/cargo
+        sudo ln -sf ~/.cargo/bin/rustc /usr/local/bin/rustc  
+        sudo ln -sf ~/.cargo/bin/cargo /usr/local/bin/cargo
+        
+        # VERIFY our takeover
+        echo "🔍 NUCLEAR VERIFICATION:"
+        which rustc
+        which cargo
         rustc --version
-        
-        # Install Solana BPF target for our Rust
-        echo "🎯 Installing Solana BPF target..."
-        ~/.cargo/bin/rustup target add bpfel-unknown-unknown || echo "Target add failed"
-        ~/.cargo/bin/rustup target list --installed | grep bpfel || echo "BPF target not installed"
+        cargo --version
+        /usr/bin/rustc --version
         
         # ENSURE target/deploy directory exists
         mkdir -p target/deploy
         
-        # Try building with BPF target using our Rust
-        echo "🔨 Building for BPF with our Rust..."
-        if CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --target bpfel-unknown-unknown --manifest-path programs/spinza/Cargo.toml; then
-          echo "✅ BPF build successful!"
-          
-          # ROBUST FILE FINDING: Look in BPF target directory
-          echo "🔍 Looking for BPF binary..."
-          find target/bpfel-unknown-unknown -name "*.so" -type f | head -10
-          
-          BPF_SO=$(find target/bpfel-unknown-unknown -name "libspinza.so" -type f | head -1)
-          
-          if [ -n "$BPF_SO" ]; then
-            echo "✅ Found BPF binary: $BPF_SO"
-            cp "$BPF_SO" target/deploy/spinza.so
-            echo "✅ Copied BPF binary to target/deploy/spinza.so"
-            
-            # VERIFY the file exists and is correct architecture
-            ls -la target/deploy/spinza.so
-            file target/deploy/spinza.so
-            
-          else
-            echo "❌ BPF binary not found! Looking for alternatives..."
-            # FALLBACK: Look for any .so in BPF directory
-            ALT_SO=$(find target/bpfel-unknown-unknown -name "*.so" -type f | head -1)
-            if [ -n "$ALT_SO" ]; then
-              echo "🔄 Using alternative .so file: $ALT_SO"
-              cp "$ALT_SO" target/deploy/spinza.so
-            else
-              echo "💀 No .so files found in BPF target!"
-              exit 1
-            fi
-          fi
-          
+        # Use Solana's cargo-build-sbf with FORCED environment
+        echo "🔨 Building with Solana BPF + FORCED Rust..."
+        env RUSTC="$HOME/.cargo/bin/rustc" CARGO="$HOME/.cargo/bin/cargo" RUSTUP_TOOLCHAIN="1.77.0" cargo-build-sbf --manifest-path programs/spinza/Cargo.toml
+        
+        # Check what was built
+        echo "🔍 Checking build output..."
+        find target -name "*.so" -type f | head -10
+        
+        # The Solana build should create the file in the right place
+        if [ -f "target/deploy/spinza.so" ]; then
+          echo "✅ Solana BPF build created target/deploy/spinza.so!"
+          ls -la target/deploy/spinza.so
+          file target/deploy/spinza.so
         else
-          echo "❌ BPF build failed! Checking what we have..."
-          find target -name "*.so" -type f | head -10
+          echo "❌ target/deploy/spinza.so not found!"
+          ls -la target/deploy/ || echo "No target/deploy directory"
           exit 1
         fi
         
-        # FINAL VERIFICATION before deployment
-        if [ ! -f "target/deploy/spinza.so" ]; then
-          echo "💀 FATAL: target/deploy/spinza.so still doesn't exist!"
-          ls -la target/deploy/ || echo "target/deploy directory doesn't exist"
-          exit 1
-        fi
-        
-        echo "✅ target/deploy/spinza.so ready for deployment"
-        
-        # Restore Solana CLI for deployment
-        mv ~/.local/share/solana_backup ~/.local/share/solana
-        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-        
-        # Deploy the BPF binary
+        # Deploy
         echo "🚀 Deploying BPF binary to devnet..."
         PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
         echo "📍 Program ID: $PROGRAM_ID"
         
-        ~/.local/share/solana/install/active_release/bin/solana program deploy target/deploy/spinza.so --program-id $PROGRAM_ID --url devnet
+        solana program deploy target/deploy/spinza.so --program-id $PROGRAM_ID --url devnet
         
         echo "✅ BPF Deployment completed!"
         
