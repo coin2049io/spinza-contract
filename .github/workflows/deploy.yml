@@ -99,66 +99,79 @@ jobs:
         ~/.cargo/bin/cargo --version
         CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
-    - name: 🚀 Deploy Smart Contract (SOLANA BPF + FORCED RUST)
+    - name: 🚀 Deploy Smart Contract (WORKING NUCLEAR + FILE HANDLING)
       run: |
-        echo "Using Solana BPF tools with FORCED Rust version..."
+        echo "WORKING NUCLEAR - Temporarily disable Solana CLI + proper file handling..."
         
-        # KEEP Solana CLI but FORCE our Rust version everywhere
-        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+        # FINAL NUCLEAR: RENAME/REMOVE the Solana CLI directory temporarily
+        echo "🔥 TEMPORARILY DISABLING SOLANA CLI..."
+        mv ~/.local/share/solana ~/.local/share/solana_backup
+        
+        # Remove from PATH
+        export PATH=$(echo $PATH | sed 's|[^:]*solana[^:]*:||g')
         source ~/.cargo/env
+        export PATH="$HOME/.cargo/bin:$PATH"
         
-        # NUCLEAR: Force ALL Rust environment variables
-        export RUSTC="$HOME/.cargo/bin/rustc"
-        export CARGO="$HOME/.cargo/bin/cargo"
-        export RUSTUP_HOME="$HOME/.rustup"
-        export CARGO_HOME="$HOME/.cargo"
-        export RUSTUP_TOOLCHAIN="1.77.0-x86_64-unknown-linux-gnu"
-        
-        # NUCLEAR: Replace system rustc/cargo EVERYWHERE with symlinks
-        sudo rm -f /usr/bin/rustc /usr/bin/cargo /usr/local/bin/rustc /usr/local/bin/cargo
-        sudo ln -sf ~/.cargo/bin/rustc /usr/bin/rustc
-        sudo ln -sf ~/.cargo/bin/cargo /usr/bin/cargo
-        sudo ln -sf ~/.cargo/bin/rustc /usr/local/bin/rustc  
-        sudo ln -sf ~/.cargo/bin/cargo /usr/local/bin/cargo
-        
-        # VERIFY our takeover
-        echo "🔍 NUCLEAR VERIFICATION:"
+        echo "🔍 VERIFICATION WITHOUT SOLANA CLI:"
         which rustc
-        which cargo
         rustc --version
-        cargo --version
-        /usr/bin/rustc --version
         
-        # ENSURE target/deploy directory exists
+        # ENSURE clean state
+        rm -rf target/deploy
         mkdir -p target/deploy
         
-        # Use Solana's cargo-build-sbf with FORCED environment
-        echo "🔨 Building with Solana BPF + FORCED Rust..."
-        env RUSTC="$HOME/.cargo/bin/rustc" CARGO="$HOME/.cargo/bin/cargo" RUSTUP_TOOLCHAIN="1.77.0" cargo-build-sbf --manifest-path programs/spinza/Cargo.toml
-        
-        # Check what was built
-        echo "🔍 Checking build output..."
-        find target -name "*.so" -type f | head -10
-        
-        # The Solana build should create the file in the right place
-        if [ -f "target/deploy/spinza.so" ]; then
-          echo "✅ Solana BPF build created target/deploy/spinza.so!"
-          ls -la target/deploy/spinza.so
-          file target/deploy/spinza.so
+        echo "🔨 ANCHOR BUILD WITHOUT SOLANA CLI..."
+        if anchor build; then
+          echo "✅ ANCHOR BUILD SUCCESSFUL!"
+          
+          # Find and copy the built binary
+          echo "🔍 Looking for built binary..."
+          find target -name "*.so" -type f | head -10
+          
+          # Look for libspinza.so in all possible locations
+          LIBSPINZA_SO=$(find target -name "libspinza.so" -type f | grep -v deps | head -1)
+          if [ -z "$LIBSPINZA_SO" ]; then
+            LIBSPINZA_SO=$(find target -name "libspinza.so" -type f | head -1)
+          fi
+          
+          if [ -n "$LIBSPINZA_SO" ]; then
+            echo "✅ Found binary at: $LIBSPINZA_SO"
+            cp "$LIBSPINZA_SO" target/deploy/spinza.so
+            echo "✅ Copied to target/deploy/spinza.so"
+            ls -la target/deploy/spinza.so
+            file target/deploy/spinza.so
+          else
+            echo "❌ No libspinza.so found!"
+            find target -name "*.so" -type f
+            exit 1
+          fi
+          
         else
-          echo "❌ target/deploy/spinza.so not found!"
-          ls -la target/deploy/ || echo "No target/deploy directory"
+          echo "❌ Anchor build failed without Solana CLI"
           exit 1
         fi
         
-        # Deploy
-        echo "🚀 Deploying BPF binary to devnet..."
+        # RESTORE SOLANA CLI for deployment
+        echo "🔄 RESTORING SOLANA CLI FOR DEPLOYMENT..."
+        mv ~/.local/share/solana_backup ~/.local/share/solana
+        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+        
+        # FINAL VERIFICATION
+        if [ ! -f "target/deploy/spinza.so" ]; then
+          echo "💀 FATAL: target/deploy/spinza.so missing!"
+          exit 1
+        fi
+        
+        echo "✅ Binary ready for deployment"
+        
+        # DEPLOY
+        echo "🚀 DEPLOYING TO DEVNET..."
         PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
         echo "📍 Program ID: $PROGRAM_ID"
         
         solana program deploy target/deploy/spinza.so --program-id $PROGRAM_ID --url devnet
         
-        echo "✅ BPF Deployment completed!"
+        echo "🎉 NUCLEAR DEPLOYMENT SUCCESSFUL!"
         
     - name: 📊 Get Program ID
       run: |
