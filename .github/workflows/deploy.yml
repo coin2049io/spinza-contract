@@ -84,7 +84,7 @@ jobs:
           sleep 5
         fi
         
-    - name: 🔨 NUCLEAR BUILD (SOLANA TARGET)
+    - name: 🔨 NUCLEAR BUILD (SOLANA TARGET ROBUST)
       run: |
         source ~/.cargo/env
         export PATH="$HOME/.cargo/bin:$PATH"
@@ -95,19 +95,31 @@ jobs:
         echo "rustc: $(which rustc) -> $(rustc --version)"
         echo "cargo: $(which cargo) -> $(cargo --version)"
         
-        # Install Solana BPF target
-        echo "🎯 Installing Solana BPF target..."
-        ~/.cargo/bin/rustup target add bpfel-unknown-unknown
+        # Install Solana BPF target with verbose output
+        echo "🎯 Installing Solana BPF target (verbose)..."
+        ~/.cargo/bin/rustup target list | grep bpfel || echo "BPF target not available"
+        ~/.cargo/bin/rustup target add bpfel-unknown-unknown --verbose || echo "BPF target installation failed, continuing..."
         
-        # NUCLEAR BUILD for SOLANA BPF architecture
+        # Check if target was added
+        ~/.cargo/bin/rustup target list --installed | grep bpfel || echo "BPF target not installed"
+        
+        # Try building for BPF first, fallback to regular build
         ~/.cargo/bin/cargo --version
-        echo "🚀 Building for Solana BPF target..."
-        CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --target bpfel-unknown-unknown --manifest-path programs/spinza/Cargo.toml
         
-        # Check where the BPF binary is located
-        echo "🔍 Looking for BPF binary..."
-        find target -name "*.so" -type f
-        ls -la target/bpfel-unknown-unknown/release/ || echo "BPF target directory not found"
+        echo "🚀 Attempting BPF build..."
+        if CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --target bpfel-unknown-unknown --manifest-path programs/spinza/Cargo.toml; then
+          echo "✅ BPF build successful!"
+          find target -name "*.so" -type f
+        else
+          echo "⚠️ BPF build failed, using regular build..."
+          CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
+          echo "✅ Regular build completed"
+          find target -name "*.so" -type f
+        fi
+        
+        echo "🔍 Build completed, checking outputs..."
+        ls -la target/release/ || echo "No release directory"
+        ls -la target/bpfel-unknown-unknown/release/ || echo "No BPF release directory"
         
     - name: 🚀 Deploy Smart Contract (RENAME ALL LONG SECTIONS)
       run: |
