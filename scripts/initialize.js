@@ -16,9 +16,10 @@ async function initialize() {
     });
     anchor.setProvider(provider);
 
-    // Load the program
-    const program = anchor.workspace.Spinza;
-    console.log('📦 Program ID:', program.programId.toString());
+    // Skip workspace, load program directly
+    const programId = new PublicKey('5gBR963NUrgHLLV6qL7RbMGdpZ4GcLXY3hvjyxrGthEY');
+    const idl = require('../target/idl/spinza.json');
+    const program = new anchor.Program(idl, programId, provider);
     
     // Configuration
     const operatorWallet = new PublicKey('E7Y3q3gNA8DKGrXydpCnv4cTQnbkzM1wx3maHqJDv7n6');
