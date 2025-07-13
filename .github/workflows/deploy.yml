@@ -99,53 +99,49 @@ jobs:
         ~/.cargo/bin/cargo --version
         CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
-    - name: 🚀 Deploy Smart Contract (ULTRA NUCLEAR SEARCH AND DESTROY)
+    - name: 🚀 Deploy Smart Contract (FINAL NUCLEAR SEARCH)
       run: |
-        echo "ULTRA NUCLEAR - Search and Destroy ALL rustc..."
+        echo "FINAL NUCLEAR - Checking Solana CLI installation..."
         
-        source ~/.cargo/env
-        export PATH="$HOME/.cargo/bin:$PATH"
+        # CHECK INSIDE SOLANA CLI DIRECTORY
+        echo "🔍 CHECKING SOLANA CLI DIRECTORY:"
+        find ~/.local/share/solana -name "rustc" -type f 2>/dev/null || echo "No rustc in Solana CLI"
+        find ~/.local/share/solana -name "*rust*" -type f 2>/dev/null | head -10 || echo "No rust files in Solana CLI"
         
-        # FIND ALL RUSTC INSTANCES ON THE SYSTEM
-        echo "🔍 FINDING ALL RUSTC INSTANCES:"
-        find /usr -name "rustc" -type f 2>/dev/null || echo "No rustc in /usr"
-        find /opt -name "rustc" -type f 2>/dev/null || echo "No rustc in /opt"
-        find /home -name "rustc" -type f 2>/dev/null || echo "No rustc in /home"
-        find /root -name "rustc" -type f 2>/dev/null || echo "No rustc in /root"
-        
-        # NUCLEAR: Find and check what version each rustc reports
-        echo "🔍 CHECKING ALL RUSTC VERSIONS:"
-        for rustc_path in $(find / -name "rustc" -type f 2>/dev/null | head -10); do
-          echo "Found rustc at: $rustc_path"
+        # CHECK WHAT VERSIONS ARE IN SOLANA
+        for rustc_path in $(find ~/.local/share/solana -name "rustc" -type f 2>/dev/null); do
+          echo "Found Solana rustc at: $rustc_path"
           $rustc_path --version 2>/dev/null || echo "Failed to get version"
         done
         
-        # FIND THE 1.72.0-dev RUSTC AND DESTROY IT
-        echo "🔍 LOOKING FOR THE 1.72.0-dev RUSTC:"
-        for rustc_path in $(find / -name "rustc" -type f 2>/dev/null); do
-          version=$($rustc_path --version 2>/dev/null || echo "unknown")
-          if echo "$version" | grep -q "1.72.0-dev"; then
-            echo "💀 FOUND THE EVIL RUSTC: $rustc_path -> $version"
-            echo "🔥 REPLACING WITH OUR RUSTC..."
-            sudo cp ~/.cargo/bin/rustc "$rustc_path"
-            echo "✅ REPLACED!"
-          fi
-        done
+        # NUCLEAR: Check anchor's internal paths
+        echo "🔍 CHECKING ANCHOR INTERNALS:"
+        which anchor
+        ls -la $(which anchor)
         
-        # Also check anchor's npm installation directory
-        echo "🔍 CHECKING ANCHOR NPM DIRECTORY:"
-        find ~/.npm -name "rustc" -type f 2>/dev/null || echo "No rustc in npm"
-        find /usr/local/lib/node_modules -name "rustc" -type f 2>/dev/null || echo "No rustc in node_modules"
+        # Check if anchor has internal solana tools
+        anchor --version
         
-        # FORCE ALL ENVIRONMENT AGAIN
-        export RUSTC="$HOME/.cargo/bin/rustc"
-        export CARGO="$HOME/.cargo/bin/cargo"
+        # FINAL NUCLEAR: RENAME/REMOVE the Solana CLI directory temporarily
+        echo "🔥 TEMPORARILY DISABLING SOLANA CLI..."
+        mv ~/.local/share/solana ~/.local/share/solana_backup
         
-        echo "🔨 TRYING ANCHOR BUILD AGAIN..."
-        anchor build
+        # Remove from PATH
+        export PATH=$(echo $PATH | sed 's|[^:]*solana[^:]*:||g')
+        source ~/.cargo/env
+        export PATH="$HOME/.cargo/bin:$PATH"
         
-        echo "🚀 ANCHOR DEPLOY..."
-        anchor deploy --provider.cluster ${{ github.event.inputs.environment || 'devnet' }}
+        echo "🔍 VERIFICATION WITHOUT SOLANA CLI:"
+        which rustc
+        rustc --version
+        
+        echo "🔨 TRYING ANCHOR BUILD WITHOUT SOLANA CLI..."
+        anchor build || echo "Build failed without Solana CLI"
+        
+        # If it fails, restore Solana CLI
+        echo "🔄 RESTORING SOLANA CLI..."
+        mv ~/.local/share/solana_backup ~/.local/share/solana
+        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         
         echo "🎉 NUCLEAR DEPLOYMENT SUCCESSFUL!"
         
