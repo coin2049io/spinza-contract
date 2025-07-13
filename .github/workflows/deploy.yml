@@ -99,42 +99,53 @@ jobs:
         ~/.cargo/bin/cargo --version
         CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
-    - name: 🚀 Deploy Smart Contract (10000% NUCLEAR FORCE)
+    - name: 🚀 Deploy Smart Contract (ULTRA NUCLEAR SEARCH AND DESTROY)
       run: |
-        echo "10000% NUCLEAR FORCE - Hijacking ALL Rust paths..."
+        echo "ULTRA NUCLEAR - Search and Destroy ALL rustc..."
         
         source ~/.cargo/env
         export PATH="$HOME/.cargo/bin:$PATH"
-        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         
-        # NUCLEAR: Replace system rustc with our rustc EVERYWHERE
-        sudo rm -f /usr/bin/rustc /usr/bin/cargo /usr/local/bin/rustc /usr/local/bin/cargo
-        sudo ln -sf ~/.cargo/bin/rustc /usr/bin/rustc
-        sudo ln -sf ~/.cargo/bin/cargo /usr/bin/cargo
-        sudo ln -sf ~/.cargo/bin/rustc /usr/local/bin/rustc
-        sudo ln -sf ~/.cargo/bin/cargo /usr/local/bin/cargo
+        # FIND ALL RUSTC INSTANCES ON THE SYSTEM
+        echo "🔍 FINDING ALL RUSTC INSTANCES:"
+        find /usr -name "rustc" -type f 2>/dev/null || echo "No rustc in /usr"
+        find /opt -name "rustc" -type f 2>/dev/null || echo "No rustc in /opt"
+        find /home -name "rustc" -type f 2>/dev/null || echo "No rustc in /home"
+        find /root -name "rustc" -type f 2>/dev/null || echo "No rustc in /root"
         
-        # NUCLEAR: Force ALL environment variables
+        # NUCLEAR: Find and check what version each rustc reports
+        echo "🔍 CHECKING ALL RUSTC VERSIONS:"
+        for rustc_path in $(find / -name "rustc" -type f 2>/dev/null | head -10); do
+          echo "Found rustc at: $rustc_path"
+          $rustc_path --version 2>/dev/null || echo "Failed to get version"
+        done
+        
+        # FIND THE 1.72.0-dev RUSTC AND DESTROY IT
+        echo "🔍 LOOKING FOR THE 1.72.0-dev RUSTC:"
+        for rustc_path in $(find / -name "rustc" -type f 2>/dev/null); do
+          version=$($rustc_path --version 2>/dev/null || echo "unknown")
+          if echo "$version" | grep -q "1.72.0-dev"; then
+            echo "💀 FOUND THE EVIL RUSTC: $rustc_path -> $version"
+            echo "🔥 REPLACING WITH OUR RUSTC..."
+            sudo cp ~/.cargo/bin/rustc "$rustc_path"
+            echo "✅ REPLACED!"
+          fi
+        done
+        
+        # Also check anchor's npm installation directory
+        echo "🔍 CHECKING ANCHOR NPM DIRECTORY:"
+        find ~/.npm -name "rustc" -type f 2>/dev/null || echo "No rustc in npm"
+        find /usr/local/lib/node_modules -name "rustc" -type f 2>/dev/null || echo "No rustc in node_modules"
+        
+        # FORCE ALL ENVIRONMENT AGAIN
         export RUSTC="$HOME/.cargo/bin/rustc"
         export CARGO="$HOME/.cargo/bin/cargo"
-        export RUSTUP_HOME="$HOME/.rustup"
-        export CARGO_HOME="$HOME/.cargo"
-        export RUSTUP_TOOLCHAIN="1.77.0-x86_64-unknown-linux-gnu"
         
-        # VERIFY NUCLEAR TAKEOVER
-        echo "🔍 NUCLEAR VERIFICATION:"
-        which rustc
-        which cargo
-        rustc --version
-        cargo --version
-        /usr/bin/rustc --version
+        echo "🔨 TRYING ANCHOR BUILD AGAIN..."
+        anchor build
         
-        # NUCLEAR ANCHOR BUILD with forced environment
-        echo "🔨 NUCLEAR Anchor build..."
-        env RUSTC="$HOME/.cargo/bin/rustc" CARGO="$HOME/.cargo/bin/cargo" RUSTUP_TOOLCHAIN="1.77.0" anchor build
-        
-        echo "🚀 NUCLEAR Anchor deploy..."
-        env RUSTC="$HOME/.cargo/bin/rustc" CARGO="$HOME/.cargo/bin/cargo" RUSTUP_TOOLCHAIN="1.77.0" anchor deploy --provider.cluster ${{ github.event.inputs.environment || 'devnet' }}
+        echo "🚀 ANCHOR DEPLOY..."
+        anchor deploy --provider.cluster ${{ github.event.inputs.environment || 'devnet' }}
         
         echo "🎉 NUCLEAR DEPLOYMENT SUCCESSFUL!"
         
