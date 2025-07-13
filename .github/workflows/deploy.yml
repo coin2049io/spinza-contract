@@ -151,6 +151,36 @@ jobs:
         PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
         echo "🎉 SUCCESS! Program ID: $PROGRAM_ID"
         echo "PROGRAM_ID=$PROGRAM_ID" > deployment_info.txt
+
+    - name: 🔍 Verify Program Actually Exists
+      run: |
+        echo "Verifying if program actually exists on devnet..."
+        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+        
+        # Get the program ID from anchor
+        DEPLOYED_ID=$(anchor keys list | grep spinza | awk '{print $2}')
+        echo "📍 Deployed Program ID: $DEPLOYED_ID"
+        
+        # Check if program exists on devnet
+        echo "🔍 Checking program on devnet..."
+        if ~/.local/share/solana/install/active_release/bin/solana program show $DEPLOYED_ID --url devnet; then
+          echo "✅ Program EXISTS on devnet!"
+        else
+          echo "❌ Program NOT FOUND on devnet!"
+          echo "🔍 Let's check what went wrong..."
+          
+          # Check our wallet balance
+          echo "💰 Wallet balance:"
+          ~/.local/share/solana/install/active_release/bin/solana balance --url devnet
+          
+          # List recent transactions
+          echo "📋 Recent transactions:"
+          ~/.local/share/solana/install/active_release/bin/solana transaction-history --url devnet | head -5
+          
+          # Try to redeploy
+          echo "🔄 Attempting to redeploy..."
+          anchor deploy --provider.cluster devnet
+        fi
         
     - name: 🎯 Initialize Game State
       run: |
