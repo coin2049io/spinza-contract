@@ -99,50 +99,49 @@ jobs:
         ~/.cargo/bin/cargo --version
         CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
-    - name: 🚀 Deploy Smart Contract (USE EXISTING BINARY FROM NUCLEAR BUILD)
+    - name: 🚀 Deploy Smart Contract (FINAL NUCLEAR SEARCH)
       run: |
-        echo "Using existing binary from successful nuclear build..."
+        echo "FINAL NUCLEAR - Checking Solana CLI installation..."
         
-        # We already built successfully in the nuclear build step!
-        # Just find and copy the existing binary
+        # CHECK INSIDE SOLANA CLI DIRECTORY
+        echo "🔍 CHECKING SOLANA CLI DIRECTORY:"
+        find ~/.local/share/solana -name "rustc" -type f 2>/dev/null || echo "No rustc in Solana CLI"
+        find ~/.local/share/solana -name "*rust*" -type f 2>/dev/null | head -10 || echo "No rust files in Solana CLI"
         
-        echo "🔍 Looking for existing binary from nuclear build..."
-        find target -name "*.so" -type f | head -10
+        # CHECK WHAT VERSIONS ARE IN SOLANA
+        for rustc_path in $(find ~/.local/share/solana -name "rustc" -type f 2>/dev/null); do
+          echo "Found Solana rustc at: $rustc_path"
+          $rustc_path --version 2>/dev/null || echo "Failed to get version"
+        done
         
-        # Find the libspinza.so that was already built
-        LIBSPINZA_SO=$(find target -name "libspinza.so" -type f | grep -v deps | head -1)
-        if [ -z "$LIBSPINZA_SO" ]; then
-          LIBSPINZA_SO=$(find target -name "libspinza.so" -type f | head -1)
-        fi
+        # NUCLEAR: Check anchor's internal paths
+        echo "🔍 CHECKING ANCHOR INTERNALS:"
+        which anchor
+        ls -la $(which anchor)
         
-        if [ -n "$LIBSPINZA_SO" ]; then
-          echo "✅ Found existing binary: $LIBSPINZA_SO"
-          
-          # Copy to deploy directory
-          mkdir -p target/deploy
-          cp "$LIBSPINZA_SO" target/deploy/spinza.so
-          echo "✅ Copied to target/deploy/spinza.so"
-          
-          ls -la target/deploy/spinza.so
-          file target/deploy/spinza.so
-          
-        else
-          echo "❌ No existing binary found!"
-          echo "Available .so files:"
-          find target -name "*.so" -type f
-          exit 1
-        fi
+        # Check if anchor has internal solana tools
+        anchor --version
         
-        # DEPLOY using Solana CLI
+        # FINAL NUCLEAR: RENAME/REMOVE the Solana CLI directory temporarily
+        echo "🔥 TEMPORARILY DISABLING SOLANA CLI..."
+        mv ~/.local/share/solana ~/.local/share/solana_backup
+        
+        # Remove from PATH
+        export PATH=$(echo $PATH | sed 's|[^:]*solana[^:]*:||g')
+        source ~/.cargo/env
+        export PATH="$HOME/.cargo/bin:$PATH"
+        
+        echo "🔍 VERIFICATION WITHOUT SOLANA CLI:"
+        which rustc
+        rustc --version
+        
+        echo "🔨 TRYING ANCHOR BUILD WITHOUT SOLANA CLI..."
+        anchor build || echo "Build failed without Solana CLI"
+        
+        # If it fails, restore Solana CLI
+        echo "🔄 RESTORING SOLANA CLI..."
+        mv ~/.local/share/solana_backup ~/.local/share/solana
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-        
-        echo "🚀 DEPLOYING EXISTING BINARY TO DEVNET..."
-        PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
-        echo "📍 Program ID: $PROGRAM_ID"
-        
-        solana program deploy target/deploy/spinza.so --program-id $PROGRAM_ID --url devnet
-        
-        echo "🎉 DEPLOYMENT SUCCESSFUL!"
         
     - name: 📊 Get Program ID
       run: |
