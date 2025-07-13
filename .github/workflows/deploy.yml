@@ -142,6 +142,41 @@ jobs:
         echo "🔄 RESTORING SOLANA CLI..."
         mv ~/.local/share/solana_backup ~/.local/share/solana
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+
+    - name: 🔧 Prepare Binary for Deployment
+      run: |
+        echo "Preparing libspinza.so for deployment..."
+        
+        # Find the libspinza.so that was built by the working nuclear step
+        echo "🔍 Looking for libspinza.so..."
+        find target -name "libspinza.so" -type f | head -5
+        
+        LIBSPINZA_SO=$(find target -name "libspinza.so" -type f | grep -v deps | head -1)
+        if [ -z "$LIBSPINZA_SO" ]; then
+          LIBSPINZA_SO=$(find target -name "libspinza.so" -type f | head -1)
+        fi
+        
+        if [ -n "$LIBSPINZA_SO" ]; then
+          echo "✅ Found libspinza.so: $LIBSPINZA_SO"
+          
+          # Create deploy directory and copy
+          mkdir -p target/deploy
+          cp "$LIBSPINZA_SO" target/deploy/spinza.so
+          echo "✅ Copied to target/deploy/spinza.so"
+          
+          # Apply ELF fixes
+          echo "🧹 Applying ELF fixes..."
+          objcopy --rename-section=.note.gnu.build-id=.note.build target/deploy/spinza.so 2>/dev/null || echo "Note section rename done"
+          objcopy --rename-section=.gcc_except_table=.gcc_except target/deploy/spinza.so 2>/dev/null || echo "GCC section rename done"
+          
+          # Verify the file is ready
+          ls -la target/deploy/spinza.so
+          echo "✅ Binary ready for deployment!"
+          
+        else
+          echo "❌ libspinza.so not found!"
+          exit 1
+        fi
         
     - name: 📊 Get Program ID
       run: |
