@@ -17,7 +17,7 @@ async function initialize() {
     anchor.setProvider(provider);
     
     // NUCLEAR FIX: Skip IDL entirely, use raw instructions
-    const programId = new PublicKey('5gBR963NUrgHLLV6qL7RbMGdpZ4GcLXY3hvjyxrGthEY');
+    const programId = new PublicKey('EVLwFnwRKDF6GoADPC3xpWdghurNEawKyNpi6nhi3RKW');
     console.log('📦 Program ID:', programId.toString());
     
     // Configuration
