@@ -99,79 +99,50 @@ jobs:
         ~/.cargo/bin/cargo --version
         CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
-    - name: 🚀 Deploy Smart Contract (WORKING NUCLEAR + FILE HANDLING)
+    - name: 🚀 Deploy Smart Contract (USE EXISTING BINARY FROM NUCLEAR BUILD)
       run: |
-        echo "WORKING NUCLEAR - Temporarily disable Solana CLI + proper file handling..."
+        echo "Using existing binary from successful nuclear build..."
         
-        # FINAL NUCLEAR: RENAME/REMOVE the Solana CLI directory temporarily
-        echo "🔥 TEMPORARILY DISABLING SOLANA CLI..."
-        mv ~/.local/share/solana ~/.local/share/solana_backup
+        # We already built successfully in the nuclear build step!
+        # Just find and copy the existing binary
         
-        # Remove from PATH
-        export PATH=$(echo $PATH | sed 's|[^:]*solana[^:]*:||g')
-        source ~/.cargo/env
-        export PATH="$HOME/.cargo/bin:$PATH"
+        echo "🔍 Looking for existing binary from nuclear build..."
+        find target -name "*.so" -type f | head -10
         
-        echo "🔍 VERIFICATION WITHOUT SOLANA CLI:"
-        which rustc
-        rustc --version
+        # Find the libspinza.so that was already built
+        LIBSPINZA_SO=$(find target -name "libspinza.so" -type f | grep -v deps | head -1)
+        if [ -z "$LIBSPINZA_SO" ]; then
+          LIBSPINZA_SO=$(find target -name "libspinza.so" -type f | head -1)
+        fi
         
-        # ENSURE clean state
-        rm -rf target/deploy
-        mkdir -p target/deploy
-        
-        echo "🔨 ANCHOR BUILD WITHOUT SOLANA CLI..."
-        if anchor build; then
-          echo "✅ ANCHOR BUILD SUCCESSFUL!"
+        if [ -n "$LIBSPINZA_SO" ]; then
+          echo "✅ Found existing binary: $LIBSPINZA_SO"
           
-          # Find and copy the built binary
-          echo "🔍 Looking for built binary..."
-          find target -name "*.so" -type f | head -10
+          # Copy to deploy directory
+          mkdir -p target/deploy
+          cp "$LIBSPINZA_SO" target/deploy/spinza.so
+          echo "✅ Copied to target/deploy/spinza.so"
           
-          # Look for libspinza.so in all possible locations
-          LIBSPINZA_SO=$(find target -name "libspinza.so" -type f | grep -v deps | head -1)
-          if [ -z "$LIBSPINZA_SO" ]; then
-            LIBSPINZA_SO=$(find target -name "libspinza.so" -type f | head -1)
-          fi
-          
-          if [ -n "$LIBSPINZA_SO" ]; then
-            echo "✅ Found binary at: $LIBSPINZA_SO"
-            cp "$LIBSPINZA_SO" target/deploy/spinza.so
-            echo "✅ Copied to target/deploy/spinza.so"
-            ls -la target/deploy/spinza.so
-            file target/deploy/spinza.so
-          else
-            echo "❌ No libspinza.so found!"
-            find target -name "*.so" -type f
-            exit 1
-          fi
+          ls -la target/deploy/spinza.so
+          file target/deploy/spinza.so
           
         else
-          echo "❌ Anchor build failed without Solana CLI"
+          echo "❌ No existing binary found!"
+          echo "Available .so files:"
+          find target -name "*.so" -type f
           exit 1
         fi
         
-        # RESTORE SOLANA CLI for deployment
-        echo "🔄 RESTORING SOLANA CLI FOR DEPLOYMENT..."
-        mv ~/.local/share/solana_backup ~/.local/share/solana
+        # DEPLOY using Solana CLI
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         
-        # FINAL VERIFICATION
-        if [ ! -f "target/deploy/spinza.so" ]; then
-          echo "💀 FATAL: target/deploy/spinza.so missing!"
-          exit 1
-        fi
-        
-        echo "✅ Binary ready for deployment"
-        
-        # DEPLOY
-        echo "🚀 DEPLOYING TO DEVNET..."
+        echo "🚀 DEPLOYING EXISTING BINARY TO DEVNET..."
         PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
         echo "📍 Program ID: $PROGRAM_ID"
         
         solana program deploy target/deploy/spinza.so --program-id $PROGRAM_ID --url devnet
         
-        echo "🎉 NUCLEAR DEPLOYMENT SUCCESSFUL!"
+        echo "🎉 DEPLOYMENT SUCCESSFUL!"
         
     - name: 📊 Get Program ID
       run: |
