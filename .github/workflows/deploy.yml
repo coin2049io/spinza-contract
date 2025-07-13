@@ -170,7 +170,8 @@ jobs:
           echo "🔨 Creating minimal IDL..."
           
           # Get the program ID from the successful deployment
-          PROGRAM_ID="EVLwFnwRKDF6GoADPC3xpWdghurNEawKyNpi6nhi3RKW"
+          PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
+          echo "🔍 Using dynamic Program ID: $PROGRAM_ID"
           
           # Create minimal IDL
           echo '{' > target/idl/spinza.json
