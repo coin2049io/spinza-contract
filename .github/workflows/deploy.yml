@@ -84,7 +84,7 @@ jobs:
           sleep 5
         fi
         
-    - name: 🔨 NUCLEAR BUILD (SOLANA TARGET ROBUST)
+    - name: 🔨 NUCLEAR BUILD (BACK TO WORKING)
       run: |
         source ~/.cargo/env
         export PATH="$HOME/.cargo/bin:$PATH"
@@ -95,70 +95,27 @@ jobs:
         echo "rustc: $(which rustc) -> $(rustc --version)"
         echo "cargo: $(which cargo) -> $(cargo --version)"
         
-        # Install Solana BPF target with verbose output
-        echo "🎯 Installing Solana BPF target (verbose)..."
-        ~/.cargo/bin/rustup target list | grep bpfel || echo "BPF target not available"
-        ~/.cargo/bin/rustup target add bpfel-unknown-unknown --verbose || echo "BPF target installation failed, continuing..."
-        
-        # Check if target was added
-        ~/.cargo/bin/rustup target list --installed | grep bpfel || echo "BPF target not installed"
-        
-        # Try building for BPF first, fallback to regular build
+        # BACK TO WORKING BUILD - let Anchor handle the target
         ~/.cargo/bin/cargo --version
+        CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
-        echo "🚀 Attempting BPF build..."
-        if CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --target bpfel-unknown-unknown --manifest-path programs/spinza/Cargo.toml; then
-          echo "✅ BPF build successful!"
-          find target -name "*.so" -type f
-        else
-          echo "⚠️ BPF build failed, using regular build..."
-          CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
-          echo "✅ Regular build completed"
-          find target -name "*.so" -type f
-        fi
-        
-        echo "🔍 Build completed, checking outputs..."
-        ls -la target/release/ || echo "No release directory"
-        ls -la target/bpfel-unknown-unknown/release/ || echo "No BPF release directory"
-        
-    - name: 🚀 Deploy Smart Contract (RENAME ALL LONG SECTIONS)
+    - name: 🚀 Deploy Smart Contract (ANCHOR HANDLES EVERYTHING)
       run: |
-        echo "Deploying with ALL long sections renamed..."
+        echo "Using Anchor to handle everything..."
         
-        # Find and copy libspinza.so
-        LIBSPINZA_SO=$(find . -name "libspinza.so" -type f | grep -v deps | head -1)
-        if [ -z "$LIBSPINZA_SO" ]; then
-          LIBSPINZA_SO=$(find . -name "libspinza.so" -type f | head -1)
-        fi
+        # Let anchor build AND deploy - it handles BPF conversion automatically
+        source ~/.cargo/env
+        export PATH="$HOME/.cargo/bin:$PATH"
+        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         
-        mkdir -p target/deploy
-        cp "$LIBSPINZA_SO" target/deploy/spinza.so
+        # Anchor build handles the BPF target automatically
+        echo "🔨 Building with Anchor (handles BPF)..."
+        anchor build
         
-        # NUCLEAR RENAME: Rename ALL problematic sections
-        echo "🏷️ Renaming ALL long ELF sections..."
+        echo "🚀 Deploying with Anchor..."
+        anchor deploy --provider.cluster ${{ github.event.inputs.environment || 'devnet' }}
         
-        # .note.gnu.build-id (18 chars) -> .note.build (11 chars)
-        objcopy --rename-section=.note.gnu.build-id=.note.build target/deploy/spinza.so || echo "build-id rename failed"
-        
-        # .gcc_except_table (17 chars) -> .gcc_except (11 chars)  
-        objcopy --rename-section=.gcc_except_table=.gcc_except target/deploy/spinza.so || echo "gcc_except rename failed"
-        
-        # .eh_frame_hdr (13 chars - OK but let's shorten just in case)
-        objcopy --rename-section=.eh_frame_hdr=.eh_frame target/deploy/spinza.so || echo "eh_frame rename failed"
-        
-        # Check for any other long sections and rename them
-        echo "🔍 Looking for other long sections..."
-        LONG_SECTIONS=$(readelf -S target/deploy/spinza.so | awk '{print $2}' | grep -E '^\..*' | awk 'length($0) > 16')
-        
-        for section in $LONG_SECTIONS; do
-          if [ ${#section} -gt 16 ]; then
-            short_name=$(echo "$section" | cut -c1-15)
-            echo "Renaming $section -> $short_name"
-            objcopy --rename-section="$section=$short_name" target/deploy/spinza.so || echo "Failed to rename $section"
-          fi
-        done
-        
-        echo "✅ All long sections renamed"
+        echo "Deployment completed!"
         
         # Verify the fix
         echo "🔍 Final section check:"
