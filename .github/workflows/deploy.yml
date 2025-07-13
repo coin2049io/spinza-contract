@@ -99,11 +99,11 @@ jobs:
         ~/.cargo/bin/cargo --version
         CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
-    - name: 🚀 Deploy Smart Contract (NUCLEAR + FILE FIX)
+    - name: 🚀 Deploy Smart Contract (NUCLEAR BPF + FILE HANDLING)
       run: |
-        echo "Deploying with NUCLEAR version fix + file handling..."
+        echo "Building and deploying with Solana BPF tools + file handling..."
         
-        # NUCLEAR: Disable Solana CLI temporarily (removes 1.72.0-dev rustc)
+        # NUCLEAR: Disable Solana CLI temporarily during build
         mv ~/.local/share/solana ~/.local/share/solana_backup
         
         # Use our working Rust
@@ -115,44 +115,74 @@ jobs:
         echo "🔍 VERIFICATION:"
         rustc --version
         
-        # Check what .so files we have from the build
-        echo "🔍 Looking for .so files..."
-        find . -name "*.so" -type f || echo "No .so files found"
+        # Install Solana BPF target for our Rust
+        echo "🎯 Installing Solana BPF target..."
+        ~/.cargo/bin/rustup target add bpfel-unknown-unknown || echo "Target add failed"
+        ~/.cargo/bin/rustup target list --installed | grep bpfel || echo "BPF target not installed"
         
-        # Find libspinza.so and copy to deploy directory
-        LIBSPINZA_SO=$(find . -name "libspinza.so" -type f | grep -v deps | head -1)
-        if [ -z "$LIBSPINZA_SO" ]; then
-          LIBSPINZA_SO=$(find . -name "libspinza.so" -type f | head -1)
-        fi
+        # ENSURE target/deploy directory exists
+        mkdir -p target/deploy
         
-        if [ -n "$LIBSPINZA_SO" ]; then
-          echo "✅ Found libspinza.so at: $LIBSPINZA_SO"
-          mkdir -p target/deploy
-          cp "$LIBSPINZA_SO" target/deploy/spinza.so
-          echo "✅ Copied to target/deploy/spinza.so"
-          ls -la target/deploy/spinza.so
+        # Try building with BPF target using our Rust
+        echo "🔨 Building for BPF with our Rust..."
+        if CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --target bpfel-unknown-unknown --manifest-path programs/spinza/Cargo.toml; then
+          echo "✅ BPF build successful!"
+          
+          # ROBUST FILE FINDING: Look in BPF target directory
+          echo "🔍 Looking for BPF binary..."
+          find target/bpfel-unknown-unknown -name "*.so" -type f | head -10
+          
+          BPF_SO=$(find target/bpfel-unknown-unknown -name "libspinza.so" -type f | head -1)
+          
+          if [ -n "$BPF_SO" ]; then
+            echo "✅ Found BPF binary: $BPF_SO"
+            cp "$BPF_SO" target/deploy/spinza.so
+            echo "✅ Copied BPF binary to target/deploy/spinza.so"
+            
+            # VERIFY the file exists and is correct architecture
+            ls -la target/deploy/spinza.so
+            file target/deploy/spinza.so
+            
+          else
+            echo "❌ BPF binary not found! Looking for alternatives..."
+            # FALLBACK: Look for any .so in BPF directory
+            ALT_SO=$(find target/bpfel-unknown-unknown -name "*.so" -type f | head -1)
+            if [ -n "$ALT_SO" ]; then
+              echo "🔄 Using alternative .so file: $ALT_SO"
+              cp "$ALT_SO" target/deploy/spinza.so
+            else
+              echo "💀 No .so files found in BPF target!"
+              exit 1
+            fi
+          fi
+          
         else
-          echo "❌ No libspinza.so found!"
+          echo "❌ BPF build failed! Checking what we have..."
+          find target -name "*.so" -type f | head -10
           exit 1
         fi
         
-        # Rename problematic ELF sections
-        echo "🧹 Fixing ELF sections..."
-        objcopy --rename-section=.note.gnu.build-id=.note.build target/deploy/spinza.so || echo "Section rename failed"
-        objcopy --rename-section=.gcc_except_table=.gcc_except target/deploy/spinza.so || echo "Section rename failed"
+        # FINAL VERIFICATION before deployment
+        if [ ! -f "target/deploy/spinza.so" ]; then
+          echo "💀 FATAL: target/deploy/spinza.so still doesn't exist!"
+          ls -la target/deploy/ || echo "target/deploy directory doesn't exist"
+          exit 1
+        fi
+        
+        echo "✅ target/deploy/spinza.so ready for deployment"
         
         # Restore Solana CLI for deployment
         mv ~/.local/share/solana_backup ~/.local/share/solana
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
         
-        # Deploy with Solana CLI (more reliable than anchor deploy)
-        echo "🚀 Deploying to devnet..."
+        # Deploy the BPF binary
+        echo "🚀 Deploying BPF binary to devnet..."
         PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
         echo "📍 Program ID: $PROGRAM_ID"
         
         ~/.local/share/solana/install/active_release/bin/solana program deploy target/deploy/spinza.so --program-id $PROGRAM_ID --url devnet
         
-        echo "✅ Deployment completed!"
+        echo "✅ BPF Deployment completed!"
         
     - name: 📊 Get Program ID
       run: |
