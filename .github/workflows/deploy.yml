@@ -237,7 +237,7 @@ jobs:
         ls -la target/idl/spinza.json
         cat target/idl/spinza.json | head -10
         
-        # Install npm dependencies and run initialization
+        # Install npm dependencies
         cd scripts
         npm install
         cd ..
@@ -246,11 +246,11 @@ jobs:
         echo "🔍 DEBUGGING initialize.js script..."
         head -25 scripts/initialize.js
         
-        # DEBUG: Test the workspace loading FROM SCRIPTS DIRECTORY
-        echo "🔍 TESTING workspace loading..."
-        cd scripts
+        # DEBUG: Test the workspace loading FROM ROOT DIRECTORY
+        echo "🔍 TESTING workspace loading FROM ROOT..."
+        export NODE_PATH="./scripts/node_modules:$NODE_PATH"
         node -e "
-        const anchor = require('@coral-xyz/anchor');
+        const anchor = require('./scripts/node_modules/@coral-xyz/anchor');
         try {
           console.log('Environment variables:');
           console.log('ANCHOR_PROVIDER_URL:', process.env.ANCHOR_PROVIDER_URL);
@@ -273,9 +273,12 @@ jobs:
           console.error('Stack:', error.stack);
         }
         "
-        cd ..
         
-        echo "🚀 Running actual initialization..."
+        echo "🚀 Running actual initialization FROM ROOT..."
+        # Set NODE_PATH to find modules in scripts directory
+        export NODE_PATH="./scripts/node_modules:$NODE_PATH"
+        
+        # Run from root directory where Anchor.toml exists
         node scripts/initialize.js
         
         echo "Game state initialized successfully!"
