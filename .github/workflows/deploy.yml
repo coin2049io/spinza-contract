@@ -152,49 +152,27 @@ jobs:
         echo "🎉 SUCCESS! Program ID: $PROGRAM_ID"
         echo "PROGRAM_ID=$PROGRAM_ID" > deployment_info.txt
         
-    - name: 🎯 Initialize Game State (IDL SEARCH & MANUAL)
+    - name: 🎯 Initialize Game State
       run: |
-        echo "Searching for IDL or creating manually..."
+        echo "Initializing game state..."
         
         # Set required environment variables
         export ANCHOR_PROVIDER_URL="${{ github.event.inputs.environment == 'mainnet-beta' && 'https://api.mainnet-beta.solana.com' || 'https://api.devnet.solana.com' }}"
         export ANCHOR_WALLET="$HOME/.config/solana/id.json"
         
-        # Search for IDL file in all possible locations
-        echo "🔍 SEARCHING FOR IDL EVERYWHERE:"
-        find . -name "spinza.json" -type f 2>/dev/null || echo "No spinza.json found"
-        find . -name "*.json" -path "*/idl/*" -type f 2>/dev/null || echo "No IDL files found"
+        echo "Using provider URL: $ANCHOR_PROVIDER_URL"
+        echo "Using wallet: $ANCHOR_WALLET"
         
-        # Check if IDL was created during the successful deployment
+        # Check if IDL file exists, create if missing
         mkdir -p target/idl
         
-        # Try to generate just the IDL without full build
-        echo "🔨 Trying IDL-only generation..."
-        
-        # Restore Solana CLI for IDL generation
-        mv ~/.local/share/solana_backup ~/.local/share/solana 2>/dev/null || echo "Solana CLI already restored"
-        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-        
-        # Try anchor idl parse (generates IDL from source without building)
-        if anchor idl parse --file programs/spinza/src/lib.rs > target/idl/spinza.json 2>/dev/null; then
-          echo "✅ IDL generated from source parsing!"
-        else
-          echo "⚠️ IDL parsing failed, creating minimal IDL..."
+        if [ ! -f "target/idl/spinza.json" ]; then
+          echo "🔨 Creating minimal IDL..."
           
           # Get the program ID from the successful deployment
           PROGRAM_ID="5gBR963NUrgHLLV6qL7RbMGdpZ4GcLXY3hvjyxrGthEY"
           
-          # Also verify/update Anchor.toml has the correct program ID
-          echo "🔍 Checking Anchor.toml..."
-          cat Anchor.toml
-          
-          # Update Anchor.toml with deployed program ID if needed
-          sed -i 's/spinza = ".*"/spinza = "'$PROGRAM_ID'"/' Anchor.toml
-          
-          echo "📝 Updated Anchor.toml:"
-          cat Anchor.toml
-          
-          # Create a complete minimal IDL manually with program address
+          # Create minimal IDL
           echo '{' > target/idl/spinza.json
           echo '  "version": "0.1.0",' >> target/idl/spinza.json
           echo '  "name": "spinza",' >> target/idl/spinza.json
@@ -216,69 +194,27 @@ jobs:
           echo '      ]' >> target/idl/spinza.json
           echo '    }' >> target/idl/spinza.json
           echo '  ],' >> target/idl/spinza.json
-          echo '  "accounts": [' >> target/idl/spinza.json
-          echo '    {' >> target/idl/spinza.json
-          echo '      "name": "gameState",' >> target/idl/spinza.json
-          echo '      "type": {' >> target/idl/spinza.json
-          echo '        "kind": "struct",' >> target/idl/spinza.json
-          echo '        "fields": []' >> target/idl/spinza.json
-          echo '      }' >> target/idl/spinza.json
-          echo '    }' >> target/idl/spinza.json
-          echo '  ],' >> target/idl/spinza.json
+          echo '  "accounts": [],' >> target/idl/spinza.json
           echo '  "types": [],' >> target/idl/spinza.json
           echo '  "events": [],' >> target/idl/spinza.json
           echo '  "errors": []' >> target/idl/spinza.json
           echo '}' >> target/idl/spinza.json
           
-          echo "✅ Complete minimal IDL created manually with program ID"
+          echo "✅ Minimal IDL created"
+        else
+          echo "✅ IDL file already exists"
         fi
         
         # Verify IDL exists
         ls -la target/idl/spinza.json
-        cat target/idl/spinza.json | head -10
         
-        # Install npm dependencies
+        # Install npm dependencies and run initialization
         cd scripts
         npm install
         cd ..
         
-        # DEBUG: Check what's in the initialize.js script
-        echo "🔍 DEBUGGING initialize.js script..."
-        head -25 scripts/initialize.js
-        
-        # DEBUG: Test the workspace loading FROM ROOT DIRECTORY
-        echo "🔍 TESTING workspace loading FROM ROOT..."
+        echo "🚀 Running initialization..."
         export NODE_PATH="./scripts/node_modules:$NODE_PATH"
-        node -e "
-        const anchor = require('./scripts/node_modules/@coral-xyz/anchor');
-        try {
-          console.log('Environment variables:');
-          console.log('ANCHOR_PROVIDER_URL:', process.env.ANCHOR_PROVIDER_URL);
-          console.log('ANCHOR_WALLET:', process.env.ANCHOR_WALLET);
-          
-          console.log('Trying to get provider...');
-          const provider = anchor.AnchorProvider.env();
-          console.log('Provider created successfully');
-          
-          console.log('Trying to get workspace...');
-          const workspace = anchor.workspace;
-          console.log('Workspace keys:', Object.keys(workspace));
-          
-          console.log('Trying to get Spinza program...');
-          const program = workspace.Spinza;
-          console.log('Program:', program ? 'found' : 'not found');
-          
-        } catch (error) {
-          console.error('DEBUG ERROR:', error.message);
-          console.error('Stack:', error.stack);
-        }
-        "
-        
-        echo "🚀 Running actual initialization FROM ROOT..."
-        # Set NODE_PATH to find modules in scripts directory
-        export NODE_PATH="./scripts/node_modules:$NODE_PATH"
-        
-        # Run from root directory where Anchor.toml exists
         node scripts/initialize.js
         
         echo "Game state initialized successfully!"
