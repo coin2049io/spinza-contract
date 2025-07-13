@@ -181,30 +181,29 @@ jobs:
         else
           echo "⚠️ IDL parsing failed, creating minimal IDL..."
           
-          # Create a minimal IDL manually for initialization
-          cat > target/idl/spinza.json << 'EOF'
-{
-  "version": "0.1.0",
-  "name": "spinza",
-  "instructions": [
-    {
-      "name": "initialize",
-      "accounts": [
-        {"name": "gameState", "isMut": true, "isSigner": false},
-        {"name": "authority", "isMut": true, "isSigner": true},
-        {"name": "systemProgram", "isMut": false, "isSigner": false}
-      ],
-      "args": [
-        {"name": "operatorWallet", "type": "publicKey"},
-        {"name": "minBet", "type": "u64"},
-        {"name": "maxBet", "type": "u64"},
-        {"name": "maxPlayers", "type": "u8"},
-        {"name": "commissionRate", "type": "u16"}
-      ]
-    }
-  ]
-}
-EOF
+          # Create a minimal IDL manually using echo (YAML-safe)
+          echo '{' > target/idl/spinza.json
+          echo '  "version": "0.1.0",' >> target/idl/spinza.json
+          echo '  "name": "spinza",' >> target/idl/spinza.json
+          echo '  "instructions": [' >> target/idl/spinza.json
+          echo '    {' >> target/idl/spinza.json
+          echo '      "name": "initialize",' >> target/idl/spinza.json
+          echo '      "accounts": [' >> target/idl/spinza.json
+          echo '        {"name": "gameState", "isMut": true, "isSigner": false},' >> target/idl/spinza.json
+          echo '        {"name": "authority", "isMut": true, "isSigner": true},' >> target/idl/spinza.json
+          echo '        {"name": "systemProgram", "isMut": false, "isSigner": false}' >> target/idl/spinza.json
+          echo '      ],' >> target/idl/spinza.json
+          echo '      "args": [' >> target/idl/spinza.json
+          echo '        {"name": "operatorWallet", "type": "publicKey"},' >> target/idl/spinza.json
+          echo '        {"name": "minBet", "type": "u64"},' >> target/idl/spinza.json
+          echo '        {"name": "maxBet", "type": "u64"},' >> target/idl/spinza.json
+          echo '        {"name": "maxPlayers", "type": "u8"},' >> target/idl/spinza.json
+          echo '        {"name": "commissionRate", "type": "u16"}' >> target/idl/spinza.json
+          echo '      ]' >> target/idl/spinza.json
+          echo '    }' >> target/idl/spinza.json
+          echo '  ]' >> target/idl/spinza.json
+          echo '}' >> target/idl/spinza.json
+          
           echo "✅ Minimal IDL created manually"
         fi
         
