@@ -99,9 +99,9 @@ jobs:
         ~/.cargo/bin/cargo --version
         CARGO_NET_GIT_FETCH_WITH_CLI=true ~/.cargo/bin/cargo build --release --manifest-path programs/spinza/Cargo.toml
         
-    - name: 🚀 Deploy Smart Contract (ELF RENAME FIX)
+    - name: 🚀 Deploy Smart Contract (RENAME ALL LONG SECTIONS)
       run: |
-        echo "Deploying with ELF rename fix..."
+        echo "Deploying with ALL long sections renamed..."
         
         # Find and copy libspinza.so
         LIBSPINZA_SO=$(find . -name "libspinza.so" -type f | grep -v deps | head -1)
@@ -112,17 +112,37 @@ jobs:
         mkdir -p target/deploy
         cp "$LIBSPINZA_SO" target/deploy/spinza.so
         
-        # BRILLIANT FIX: Rename the section to be shorter
-        echo "🏷️ Renaming ELF section to fit 16-byte limit..."
+        # NUCLEAR RENAME: Rename ALL problematic sections
+        echo "🏷️ Renaming ALL long ELF sections..."
         
-        # Rename .note.gnu.build-id (18 chars) -> .note.build (11 chars)
-        objcopy --rename-section=.note.gnu.build-id=.note.build target/deploy/spinza.so
+        # .note.gnu.build-id (18 chars) -> .note.build (11 chars)
+        objcopy --rename-section=.note.gnu.build-id=.note.build target/deploy/spinza.so || echo "build-id rename failed"
         
-        echo "✅ Section renamed from '.note.gnu.build-id' to '.note.build'"
+        # .gcc_except_table (17 chars) -> .gcc_except (11 chars)  
+        objcopy --rename-section=.gcc_except_table=.gcc_except target/deploy/spinza.so || echo "gcc_except rename failed"
+        
+        # .eh_frame_hdr (13 chars - OK but let's shorten just in case)
+        objcopy --rename-section=.eh_frame_hdr=.eh_frame target/deploy/spinza.so || echo "eh_frame rename failed"
+        
+        # Check for any other long sections and rename them
+        echo "🔍 Looking for other long sections..."
+        LONG_SECTIONS=$(readelf -S target/deploy/spinza.so | awk '{print $2}' | grep -E '^\..*' | awk 'length($0) > 16')
+        
+        for section in $LONG_SECTIONS; do
+          if [ ${#section} -gt 16 ]; then
+            short_name=$(echo "$section" | cut -c1-15)
+            echo "Renaming $section -> $short_name"
+            objcopy --rename-section="$section=$short_name" target/deploy/spinza.so || echo "Failed to rename $section"
+          fi
+        done
+        
+        echo "✅ All long sections renamed"
         
         # Verify the fix
-        echo "🔍 Checking section names:"
-        readelf -S target/deploy/spinza.so | grep -E "\[.*\]" | head -10
+        echo "🔍 Final section check:"
+        readelf -S target/deploy/spinza.so | awk '{print $2}' | grep -E '^\..*' | while read section; do
+          echo "Section: $section (${#section} chars)"
+        done
         
         # Deploy with Solana CLI
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
