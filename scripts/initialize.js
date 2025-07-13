@@ -17,45 +17,19 @@ async function initialize() {
     });
     anchor.setProvider(provider);
     
-    // Get current deployed program ID dynamically with validation
-    let programIdString;
-    try {
-      programIdString = execSync('anchor keys list | grep spinza | awk \'{print $2}\'', { 
-        encoding: 'utf-8',
-        cwd: '..' // Run from root directory where Anchor.toml is
-      }).trim();
-      
-      console.log('🔍 Raw program ID from anchor:', JSON.stringify(programIdString));
-      console.log('🔍 Program ID length:', programIdString.length);
-      
-      // Validate the program ID string
-      if (!programIdString || programIdString.length !== 44) {
-        throw new Error(`Invalid program ID format: "${programIdString}" (length: ${programIdString.length})`);
-      }
-      
-      // Clean any potential extra characters
-      programIdString = programIdString.replace(/[^A-Za-z0-9]/g, '');
-      
-      if (programIdString.length !== 44) {
-        throw new Error(`Program ID has wrong length after cleaning: ${programIdString.length}`);
-      }
-      
-    } catch (error) {
-      console.error('❌ Failed to get program ID:', error.message);
-      console.log('🔄 Falling back to hardcoded program ID...');
-      programIdString = '5nSJEJ7dPw3Nv7HQmCCC4CQWnGpJwCFV6YAnAQyPQguB';
-    }
-    
-    console.log('🔍 Using Program ID:', programIdString);
-    
+    // Get program ID from the IDL file (most reliable)
     let programId;
     try {
+      console.log('🔍 Reading program ID from IDL file...');
+      const idl = require('../target/idl/spinza.json');
+      const programIdString = idl.programId;
+      console.log('🔍 Program ID from IDL:', programIdString);
+      
       programId = new PublicKey(programIdString);
       console.log('✅ Valid Program ID created:', programId.toString());
     } catch (error) {
-      console.error('❌ Failed to create PublicKey:', error.message);
-      console.error('❌ Invalid program ID string:', JSON.stringify(programIdString));
-      throw new Error(`Cannot create PublicKey from: "${programIdString}"`);
+      console.error('❌ Failed to read IDL or create PublicKey:', error.message);
+      throw new Error(`Cannot get program ID from IDL: ${error.message}`);
     }
     
     // Configuration
