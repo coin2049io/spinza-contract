@@ -103,25 +103,6 @@ jobs:
       run: |
         echo "FINAL NUCLEAR - Checking Solana CLI installation..."
         
-        # CHECK INSIDE SOLANA CLI DIRECTORY
-        echo "🔍 CHECKING SOLANA CLI DIRECTORY:"
-        find ~/.local/share/solana -name "rustc" -type f 2>/dev/null || echo "No rustc in Solana CLI"
-        find ~/.local/share/solana -name "*rust*" -type f 2>/dev/null | head -10 || echo "No rust files in Solana CLI"
-        
-        # CHECK WHAT VERSIONS ARE IN SOLANA
-        for rustc_path in $(find ~/.local/share/solana -name "rustc" -type f 2>/dev/null); do
-          echo "Found Solana rustc at: $rustc_path"
-          $rustc_path --version 2>/dev/null || echo "Failed to get version"
-        done
-        
-        # NUCLEAR: Check anchor's internal paths
-        echo "🔍 CHECKING ANCHOR INTERNALS:"
-        which anchor
-        ls -la $(which anchor)
-        
-        # Check if anchor has internal solana tools
-        anchor --version
-        
         # FINAL NUCLEAR: RENAME/REMOVE the Solana CLI directory temporarily
         echo "🔥 TEMPORARILY DISABLING SOLANA CLI..."
         mv ~/.local/share/solana ~/.local/share/solana_backup
@@ -138,11 +119,11 @@ jobs:
         echo "🔨 TRYING ANCHOR BUILD WITHOUT SOLANA CLI..."
         anchor build || echo "Build failed without Solana CLI"
         
-        # If it fails, restore Solana CLI
+        # RESTORE SOLANA CLI
         echo "🔄 RESTORING SOLANA CLI..."
         mv ~/.local/share/solana_backup ~/.local/share/solana
         export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-
+        
     - name: 🔧 Prepare Binary for Deployment
       run: |
         echo "Preparing libspinza.so for deployment..."
@@ -177,6 +158,30 @@ jobs:
           echo "❌ libspinza.so not found!"
           exit 1
         fi
+        
+    - name: 🚀 Deploy to Devnet
+      run: |
+        echo "Deploying prepared binary to devnet..."
+        
+        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+        
+        # VERIFY we have the binary ready
+        if [ -f "target/deploy/spinza.so" ]; then
+          echo "✅ Binary ready for deployment: target/deploy/spinza.so"
+          ls -la target/deploy/spinza.so
+        else
+          echo "❌ Binary not found!"
+          exit 1
+        fi
+        
+        # DEPLOY
+        echo "🚀 DEPLOYING TO DEVNET..."
+        PROGRAM_ID=$(anchor keys list | grep spinza | awk '{print $2}')
+        echo "📍 Program ID: $PROGRAM_ID"
+        
+        solana program deploy target/deploy/spinza.so --program-id $PROGRAM_ID --url devnet
+        
+        echo "🎉 DEPLOYMENT SUCCESSFUL!"
         
     - name: 📊 Get Program ID
       run: |
@@ -276,44 +281,11 @@ jobs:
         cd scripts
         npm install
         cd ..
-
-        echo "🔍 DEBUGGING IDL and Program loading..."
-        
-        # Debug the IDL file content
-        echo "IDL file content:"
-        cat target/idl/spinza.json
-        
-        # Test loading the IDL in Node.js
-        cd scripts
-        node -e "
-        try {
-          console.log('Testing IDL loading...');
-          const idl = require('../target/idl/spinza.json');
-          console.log('IDL loaded successfully');
-          console.log('IDL programId:', idl.programId);
-          console.log('IDL name:', idl.name);
-          console.log('IDL version:', idl.version);
-          
-          const { PublicKey } = require('@solana/web3.js');
-          console.log('Testing PublicKey creation...');
-          const programId = new PublicKey('5gBR963NUrgHLLV6qL7RbMGdpZ4GcLXY3hvjyxrGthEY');
-          console.log('Direct PublicKey created:', programId.toString());
-          
-          const programIdFromIDL = new PublicKey(idl.programId);
-          console.log('PublicKey from IDL:', programIdFromIDL.toString());
-          
-        } catch (error) {
-          console.error('DEBUG ERROR:', error.message);
-          console.error('Stack:', error.stack);
-        }
-        "
-        cd ..
         
         echo "🚀 Running initialization..."
         export NODE_PATH="./scripts/node_modules:$NODE_PATH"
         node scripts/initialize.js
         
-        echo "Game state initialized successfully!"
         
     - name: 📤 Upload Results
       uses: actions/upload-artifact@v4
