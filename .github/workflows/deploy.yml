@@ -163,9 +163,19 @@ jobs:
         echo "Using provider URL: $ANCHOR_PROVIDER_URL"
         echo "Using wallet: $ANCHOR_WALLET"
         
+        # Check if Anchor.toml exists in root
+        ls -la Anchor.toml || echo "Anchor.toml not found in root"
+        
+        # Install npm dependencies from scripts directory
         cd scripts
         npm install
-        node initialize.js
+        
+        # Go back to root directory to run the script (where Anchor.toml is)
+        cd ..
+        
+        # Run initialization script from root directory
+        node scripts/initialize.js
+        
         echo "Game state initialized successfully!"
         
     - name: 📤 Upload Results
