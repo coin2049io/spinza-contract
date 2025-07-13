@@ -152,11 +152,21 @@ jobs:
         echo "🎉 SUCCESS! Program ID: $PROGRAM_ID"
         echo "PROGRAM_ID=$PROGRAM_ID" > deployment_info.txt
         
-    - name: 🎯 Initialize Game
+    - name: 🎯 Initialize Game State
       run: |
+        echo "Initializing game state..."
+        
+        # Set required environment variables for Anchor
+        export ANCHOR_PROVIDER_URL="${{ github.event.inputs.environment == 'mainnet-beta' && 'https://api.mainnet-beta.solana.com' || 'https://api.devnet.solana.com' }}"
+        export ANCHOR_WALLET="$HOME/.config/solana/id.json"
+        
+        echo "Using provider URL: $ANCHOR_PROVIDER_URL"
+        echo "Using wallet: $ANCHOR_WALLET"
+        
         cd scripts
         npm install
         node initialize.js
+        echo "Game state initialized successfully!"
         
     - name: 📤 Upload Results
       uses: actions/upload-artifact@v4
