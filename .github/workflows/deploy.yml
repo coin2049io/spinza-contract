@@ -170,7 +170,7 @@ jobs:
           echo "🔨 Creating minimal IDL..."
           
           # Get the program ID from the successful deployment
-          PROGRAM_ID="5gBR963NUrgHLLV6qL7RbMGdpZ4GcLXY3hvjyxrGthEY"
+          PROGRAM_ID="EVLwFnwRKDF6GoADPC3xpWdghurNEawKyNpi6nhi3RKW"
           
           # Create minimal IDL
           echo '{' > target/idl/spinza.json
