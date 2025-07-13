@@ -152,43 +152,65 @@ jobs:
         echo "🎉 SUCCESS! Program ID: $PROGRAM_ID"
         echo "PROGRAM_ID=$PROGRAM_ID" > deployment_info.txt
         
-    - name: 🎯 Initialize Game State (NUCLEAR IDL)
+    - name: 🎯 Initialize Game State (IDL SEARCH & MANUAL)
       run: |
-        echo "Initializing game state with NUCLEAR IDL generation..."
+        echo "Searching for IDL or creating manually..."
         
-        # Set required environment variables for Anchor
+        # Set required environment variables
         export ANCHOR_PROVIDER_URL="${{ github.event.inputs.environment == 'mainnet-beta' && 'https://api.mainnet-beta.solana.com' || 'https://api.devnet.solana.com' }}"
         export ANCHOR_WALLET="$HOME/.config/solana/id.json"
         
-        echo "Using provider URL: $ANCHOR_PROVIDER_URL"
+        # Search for IDL file in all possible locations
+        echo "🔍 SEARCHING FOR IDL EVERYWHERE:"
+        find . -name "spinza.json" -type f 2>/dev/null || echo "No spinza.json found"
+        find . -name "*.json" -path "*/idl/*" -type f 2>/dev/null || echo "No IDL files found"
         
-        # Check if IDL file exists
-        if [ ! -f "target/idl/spinza.json" ]; then
-          echo "🔨 NUCLEAR IDL GENERATION..."
+        # Check if IDL was created during the successful deployment
+        mkdir -p target/idl
+        
+        # Try to generate just the IDL without full build
+        echo "🔨 Trying IDL-only generation..."
+        
+        # Restore Solana CLI for IDL generation
+        mv ~/.local/share/solana_backup ~/.local/share/solana 2>/dev/null || echo "Solana CLI already restored"
+        export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+        
+        # Try anchor idl parse (generates IDL from source without building)
+        if anchor idl parse --file programs/spinza/src/lib.rs > target/idl/spinza.json 2>/dev/null; then
+          echo "✅ IDL generated from source parsing!"
+        else
+          echo "⚠️ IDL parsing failed, creating minimal IDL..."
           
-          # NUCLEAR: Disable Solana CLI temporarily (same as deployment)
-          mv ~/.local/share/solana ~/.local/share/solana_backup
-          
-          # Use our working Rust
-          source ~/.cargo/env
-          export PATH="$HOME/.cargo/bin:$PATH"
-          export RUSTC="$HOME/.cargo/bin/rustc"
-          export CARGO="$HOME/.cargo/bin/cargo"
-          
-          echo "🔍 VERIFICATION:"
-          rustc --version
-          
-          # NUCLEAR Anchor build to generate IDL
-          echo "🔨 NUCLEAR Anchor build for IDL..."
-          anchor build || echo "Build failed"
-          
-          # Restore Solana CLI
-          mv ~/.local/share/solana_backup ~/.local/share/solana
-          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          # Create a minimal IDL manually for initialization
+          cat > target/idl/spinza.json << 'EOF'
+{
+  "version": "0.1.0",
+  "name": "spinza",
+  "instructions": [
+    {
+      "name": "initialize",
+      "accounts": [
+        {"name": "gameState", "isMut": true, "isSigner": false},
+        {"name": "authority", "isMut": true, "isSigner": true},
+        {"name": "systemProgram", "isMut": false, "isSigner": false}
+      ],
+      "args": [
+        {"name": "operatorWallet", "type": "publicKey"},
+        {"name": "minBet", "type": "u64"},
+        {"name": "maxBet", "type": "u64"},
+        {"name": "maxPlayers", "type": "u8"},
+        {"name": "commissionRate", "type": "u16"}
+      ]
+    }
+  ]
+}
+EOF
+          echo "✅ Minimal IDL created manually"
         fi
         
         # Verify IDL exists
-        ls -la target/idl/spinza.json || echo "IDL still not found"
+        ls -la target/idl/spinza.json
+        cat target/idl/spinza.json | head -10
         
         # Install npm dependencies and run initialization
         cd scripts
