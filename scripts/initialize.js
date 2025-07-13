@@ -16,11 +16,9 @@ async function initialize() {
     });
     anchor.setProvider(provider);
     
-    // Skip workspace, load program directly
+    // NUCLEAR FIX: Skip IDL entirely, use raw instructions
     const programId = new PublicKey('5gBR963NUrgHLLV6qL7RbMGdpZ4GcLXY3hvjyxrGthEY');
-    const idl = require('../target/idl/spinza.json');
-    const program = new anchor.Program(idl, programId, provider);
-    console.log('📦 Program ID:', program.programId.toString());
+    console.log('📦 Program ID:', programId.toString());
     
     // Configuration
     const operatorWallet = new PublicKey('E7Y3q3gNA8DKGrXydpCnv4cTQnbkzM1wx3maHqJDv7n6');
@@ -39,23 +37,41 @@ async function initialize() {
     // Derive game state PDA
     const [gameStatePDA] = await PublicKey.findProgramAddress(
       [Buffer.from('game_state')],
-      program.programId
+      programId
     );
     
     console.log('🎲 Game State PDA:', gameStatePDA.toString());
     
-    // Initialize the game
-    const tx = await program.methods
-      .initialize(operatorWallet, minBet, maxBet, maxPlayers, commissionRate)
-      .accounts({
-        gameState: gameStatePDA,
-        authority: provider.wallet.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .rpc();
+    // Create initialize instruction manually
+    const borsh = require('borsh');
+    
+    // Serialize instruction data
+    const instructionData = Buffer.concat([
+      Buffer.from([175, 175, 109, 31, 13, 152, 155, 237]), // initialize discriminator
+      operatorWallet.toBuffer(),
+      Buffer.from(minBet.toString(16).padStart(16, '0'), 'hex').reverse(),
+      Buffer.from(maxBet.toString(16).padStart(16, '0'), 'hex').reverse(),
+      Buffer.from([maxPlayers]),
+      Buffer.from(commissionRate.toString(16).padStart(4, '0'), 'hex').reverse(),
+    ]);
+    
+    // Create instruction
+    const instruction = new anchor.web3.TransactionInstruction({
+      keys: [
+        { pubkey: gameStatePDA, isSigner: false, isWritable: true },
+        { pubkey: provider.wallet.publicKey, isSigner: true, isWritable: true },
+        { pubkey: anchor.web3.SystemProgram.programId, isSigner: false, isWritable: false },
+      ],
+      programId,
+      data: instructionData,
+    });
+    
+    // Send transaction
+    const tx = new anchor.web3.Transaction().add(instruction);
+    const signature = await provider.sendAndConfirm(tx);
     
     console.log('✅ Game initialized successfully!');
-    console.log('📋 Transaction:', tx);
+    console.log('📋 Transaction:', signature);
     console.log('🎲 Game State PDA:', gameStatePDA.toString());
     console.log('🎯 Spinza.io is ready for players!');
     
