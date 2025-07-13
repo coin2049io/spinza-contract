@@ -212,6 +212,38 @@ jobs:
         cd scripts
         npm install
         cd ..
+
+        echo "🔍 DEBUGGING IDL and Program loading..."
+        
+        # Debug the IDL file content
+        echo "IDL file content:"
+        cat target/idl/spinza.json
+        
+        # Test loading the IDL in Node.js
+        cd scripts
+        node -e "
+        try {
+          console.log('Testing IDL loading...');
+          const idl = require('../target/idl/spinza.json');
+          console.log('IDL loaded successfully');
+          console.log('IDL programId:', idl.programId);
+          console.log('IDL name:', idl.name);
+          console.log('IDL version:', idl.version);
+          
+          const { PublicKey } = require('@solana/web3.js');
+          console.log('Testing PublicKey creation...');
+          const programId = new PublicKey('5gBR963NUrgHLLV6qL7RbMGdpZ4GcLXY3hvjyxrGthEY');
+          console.log('Direct PublicKey created:', programId.toString());
+          
+          const programIdFromIDL = new PublicKey(idl.programId);
+          console.log('PublicKey from IDL:', programIdFromIDL.toString());
+          
+        } catch (error) {
+          console.error('DEBUG ERROR:', error.message);
+          console.error('Stack:', error.stack);
+        }
+        "
+        cd ..
         
         echo "🚀 Running initialization..."
         export NODE_PATH="./scripts/node_modules:$NODE_PATH"
