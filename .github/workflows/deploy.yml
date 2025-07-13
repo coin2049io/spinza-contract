@@ -181,10 +181,24 @@ jobs:
         else
           echo "⚠️ IDL parsing failed, creating minimal IDL..."
           
-          # Create a minimal IDL manually using echo (YAML-safe)
+          # Get the program ID from the successful deployment
+          PROGRAM_ID="5gBR963NUrgHLLV6qL7RbMGdpZ4GcLXY3hvjyxrGthEY"
+          
+          # Also verify/update Anchor.toml has the correct program ID
+          echo "🔍 Checking Anchor.toml..."
+          cat Anchor.toml
+          
+          # Update Anchor.toml with deployed program ID if needed
+          sed -i 's/spinza = ".*"/spinza = "'$PROGRAM_ID'"/' Anchor.toml
+          
+          echo "📝 Updated Anchor.toml:"
+          cat Anchor.toml
+          
+          # Create a complete minimal IDL manually with program address
           echo '{' > target/idl/spinza.json
           echo '  "version": "0.1.0",' >> target/idl/spinza.json
           echo '  "name": "spinza",' >> target/idl/spinza.json
+          echo '  "programId": "'$PROGRAM_ID'",' >> target/idl/spinza.json
           echo '  "instructions": [' >> target/idl/spinza.json
           echo '    {' >> target/idl/spinza.json
           echo '      "name": "initialize",' >> target/idl/spinza.json
@@ -201,10 +215,22 @@ jobs:
           echo '        {"name": "commissionRate", "type": "u16"}' >> target/idl/spinza.json
           echo '      ]' >> target/idl/spinza.json
           echo '    }' >> target/idl/spinza.json
-          echo '  ]' >> target/idl/spinza.json
+          echo '  ],' >> target/idl/spinza.json
+          echo '  "accounts": [' >> target/idl/spinza.json
+          echo '    {' >> target/idl/spinza.json
+          echo '      "name": "gameState",' >> target/idl/spinza.json
+          echo '      "type": {' >> target/idl/spinza.json
+          echo '        "kind": "struct",' >> target/idl/spinza.json
+          echo '        "fields": []' >> target/idl/spinza.json
+          echo '      }' >> target/idl/spinza.json
+          echo '    }' >> target/idl/spinza.json
+          echo '  ],' >> target/idl/spinza.json
+          echo '  "types": [],' >> target/idl/spinza.json
+          echo '  "events": [],' >> target/idl/spinza.json
+          echo '  "errors": []' >> target/idl/spinza.json
           echo '}' >> target/idl/spinza.json
           
-          echo "✅ Minimal IDL created manually"
+          echo "✅ Complete minimal IDL created manually with program ID"
         fi
         
         # Verify IDL exists
