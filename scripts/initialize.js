@@ -1,5 +1,6 @@
 const anchor = require('@coral-xyz/anchor');
 const { Connection, PublicKey } = require('@solana/web3.js');
+const { execSync } = require('child_process');
 
 async function initialize() {
   console.log('🎯 Initializing Spinza.io Game State...');
@@ -16,8 +17,13 @@ async function initialize() {
     });
     anchor.setProvider(provider);
     
-    // NUCLEAR FIX: Skip IDL entirely, use raw instructions
-    const programId = new PublicKey('EVLwFnwRKDF6GoADPC3xpWdghurNEawKyNpi6nhi3RKW');
+    // Get current deployed program ID dynamically
+    const programIdString = execSync('anchor keys list | grep spinza | awk \'{print $2}\'', { 
+      encoding: 'utf-8',
+      cwd: '..' // Run from root directory where Anchor.toml is
+    }).trim();
+    const programId = new PublicKey(programIdString);
+    console.log('🔍 Using dynamic Program ID:', programIdString);
     console.log('📦 Program ID:', programId.toString());
     
     // Configuration
